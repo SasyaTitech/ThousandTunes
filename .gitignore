@@ -12,4 +12,5 @@ playwright-report/
 
 # The planning notes and the research behind them stay on this machine.
 /plan.md
+/plan-linux.md
 /docs/research/

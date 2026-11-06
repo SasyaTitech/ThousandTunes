@@ -367,9 +367,16 @@ body {
   background: var(--takt-core);
 }
 
+/* A name too long for the row is cut with an ellipsis. The display matters:
+   text-overflow does nothing inside a flex container, which is what .td-slot
+   makes this, and the name was being chopped mid word with no sign that
+   anything had been left out. A block with the line height of the row it sits
+   in keeps the alignment the flex box was giving it. */
 .td-device {
+  display: block;
   flex: 1 1 auto;
   min-width: 0;
+  line-height: 15px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -22,6 +22,7 @@ const DEFAULT_APPEARANCE: AppearanceConfig = {
   placement: "float",
   motion_allowed: true,
   accent: null,
+  pinned_draggable: false,
 };
 
 const DEFAULT_TRANSPORT: Transport = {
@@ -148,7 +149,7 @@ export default function App() {
     const onContext = (e: MouseEvent) => {
       e.preventDefault();
       if ((e.target as Element | null)?.closest?.(".td-pill")) return;
-      invoke("show_context_menu").catch(() => {});
+      invoke("show_context_menu", { x: e.clientX, y: e.clientY }).catch(() => {});
     };
     window.addEventListener("contextmenu", onContext);
     return () => window.removeEventListener("contextmenu", onContext);
@@ -156,6 +157,23 @@ export default function App() {
 
   const startDrag = React.useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
+    getCurrentWindow()
+      .startDragging()
+      .catch(() => {});
+  }, []);
+
+  /**
+   * Dragging a pinned widget, which only Linux allows.
+   *
+   * There is no grip in the pinned layout and no room for one, so the drag
+   * starts from the surface itself. Anything that does something of its own on
+   * a click is left alone, which leaves the padding and the gaps between the
+   * controls as the handle.
+   */
+  const startPanelDrag = React.useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const target = e.target as Element | null;
+    if (target?.closest?.(".td-play, .td-pill, .td-slider, .td-link, .td-value")) return;
     getCurrentWindow()
       .startDragging()
       .catch(() => {});
@@ -292,6 +310,12 @@ export default function App() {
       data-placement={appearance.placement}
       ref={shellRef}
       onWheel={onWheel}
+      onMouseDown={pinned && appearance.pinned_draggable ? startPanelDrag : undefined}
+      title={
+        pinned && appearance.pinned_draggable
+          ? "Drag the background to move the widget along the panel"
+          : undefined
+      }
     >
       {!pinned && (
         <div className="td-grip" onMouseDown={startDrag} title="Drag">

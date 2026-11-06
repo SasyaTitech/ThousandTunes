@@ -24,6 +24,7 @@ export async function installTauriMock(page: Page) {
         placement: "float",
         motion_allowed: true,
         accent: null,
+        pinned_draggable: false,
       },
       transport: {
         running: false,

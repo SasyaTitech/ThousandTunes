@@ -35,6 +35,10 @@ pub struct AppearanceConfig {
     pub motion_allowed: bool,
     /// `#rrggbb`, or `None` for the built in turquoise.
     pub accent: Option<String>,
+    /// Whether a pinned widget can be dragged along the panel. True on Linux,
+    /// where how much room the panel's clock and icons take cannot be asked
+    /// for and has to be corrected by hand, once.
+    pub pinned_draggable: bool,
 }
 
 /// What the metronome is doing, sent to the interface as the `transport`
@@ -86,6 +90,7 @@ impl AppState {
             placement: s.widget.mode.clone(),
             motion_allowed: self.motion_allowed.load(Ordering::Relaxed),
             accent: s.appearance.accent,
+            pinned_draggable: !cfg!(windows),
         }
     }
 

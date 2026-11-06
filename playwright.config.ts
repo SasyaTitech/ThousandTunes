@@ -12,12 +12,15 @@ export default defineConfig({
     // Matches the real logical size of the floating window.
     viewport: { width: 300, height: 50 },
   },
-  // Two projects, because one of these specs asserts and the other produces.
-  // `docs` writes the README images into a tracked folder, so running it as
-  // part of an ordinary test run turns every run into a diff nobody asked for.
+  // Three projects, because these specs do different jobs. `docs` writes the
+  // README images into a tracked folder, so running it as part of an ordinary
+  // test run turns every run into a diff nobody asked for. `walkthrough`
+  // photographs every step of every control into an untracked folder, to be
+  // looked at after a change rather than on every run.
   projects: [
-    { name: "suite", testIgnore: "docs-shots.spec.ts" },
+    { name: "suite", testIgnore: ["docs-shots.spec.ts", "walkthrough.spec.ts"] },
     { name: "docs", testMatch: "docs-shots.spec.ts" },
+    { name: "walkthrough", testMatch: "walkthrough.spec.ts" },
   ],
   webServer: {
     command: "npx vite --port 1420 --strictPort",

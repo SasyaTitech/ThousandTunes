@@ -1,0 +1,21 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name={{name}}
+GenericName=Metronome
+Comment={{comment}}
+Exec={{exec}} {{exec_arg}}
+Icon={{icon}}
+Terminal=false
+Categories={{categories}}
+Keywords=metronome;tempo;bpm;beat;click;practice;rhythm;music;guitar;drums;
+StartupNotify=false
+# The window names itself after the binary, not after the product, so this
+# is what a desktop matches a running widget against.
+StartupWMClass=taktdock
+SingleMainWindow=true
+Actions=Toggle;
+
+[Desktop Action Toggle]
+Name=Start or stop
+Exec={{exec}} --toggle

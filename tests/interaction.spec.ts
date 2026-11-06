@@ -80,6 +80,10 @@ test("a pill steps to the next value on click and lists them on right click", as
   await page.locator('[data-pill="meter"]').click({ button: "right" });
   const menus = await calls(page, "show_pill_menu");
   expect(menus.map((c) => c.args.pill)).toEqual(["meter"]);
+  // Where the click was, so the menu opens next to it rather than wherever
+  // the window system would have guessed.
+  expect(typeof menus[0].args.x).toBe("number");
+  expect(typeof menus[0].args.y).toBe("number");
   // The pill has a menu of its own, and it does not also open the full one.
   expect(await calls(page, "show_context_menu")).toHaveLength(0);
 });
@@ -88,7 +92,10 @@ test("a right click anywhere else opens the full menu", async ({ page }) => {
   await boot(page);
   await clearCalls(page);
   await page.locator(".td-bpm").click({ button: "right" });
-  expect(await calls(page, "show_context_menu")).toHaveLength(1);
+  const opened = await calls(page, "show_context_menu");
+  expect(opened).toHaveLength(1);
+  expect(typeof opened[0].args.x).toBe("number");
+  expect(typeof opened[0].args.y).toBe("number");
 });
 
 test("the expanded layout switches the sound and scrolls the volume", async ({ page }) => {

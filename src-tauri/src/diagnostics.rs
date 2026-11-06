@@ -44,6 +44,8 @@ fn report(state: &AppState) -> String {
     ));
     out.push_str(&format!("version: {}\n", env!("CARGO_PKG_VERSION")));
     out.push_str(&format!("desktop: {}\n", crate::desktop()));
+    #[cfg(target_os = "linux")]
+    out.push_str(&format!("session: {}\n", crate::linux::session_description()));
     out.push_str(&format!("uptime: {}s\n", crate::uptime_secs()));
     out.push_str(&format!("data directory: {}\n\n", data_dir().display()));
 
@@ -133,6 +135,30 @@ fn report(state: &AppState) -> String {
             "  {} | {} | dpi {} | primary {} | id {}\n",
             m.gdi_name, m.friendly_name, m.dpi, m.primary, m.stable_id
         ));
+        out.push_str(&format!(
+            "    bounds {},{} {}x{} | work {},{} {}x{}\n",
+            m.bounds.left,
+            m.bounds.top,
+            m.bounds.right - m.bounds.left,
+            m.bounds.bottom - m.bounds.top,
+            m.work.left,
+            m.work.top,
+            m.work.right - m.work.left,
+            m.work.bottom - m.work.top,
+        ));
+        match crate::monitor::taskbar_for(&m) {
+            Some(bar) => out.push_str(&format!(
+                "    panel {},{} {}x{} | tray from {} | auto hide {} | on screen {}\n",
+                bar.rect.left,
+                bar.rect.top,
+                bar.rect.right - bar.rect.left,
+                bar.rect.bottom - bar.rect.top,
+                bar.tray_left,
+                bar.auto_hide,
+                bar.on_screen,
+            )),
+            None => out.push_str("    panel none\n"),
+        }
     }
 
     out.push_str("\nsettings\n");

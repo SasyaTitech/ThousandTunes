@@ -1,14 +1,14 @@
-# TaktDock: a metronome for the Windows taskbar
+# TaktDock: a metronome for the Windows taskbar and the Linux panel
 
-**TaktDock is a free, open source metronome app for Windows 10 and 11 that
-lives on the taskbar.** Pick a tempo and a time signature, press play, and keep
-practising guitar, bass, drums, piano or voice without switching windows. It
-floats just above the taskbar or pins right into it next to the clock, it never
-steals keyboard focus from your DAW, tab viewer or video, and its click is
-sample accurate.
+**TaktDock is a free, open source metronome app for Windows 10 and 11 and for
+Linux desktops, and it lives on the taskbar.** Pick a tempo and a time
+signature, press play, and keep practising guitar, bass, drums, piano or voice
+without switching windows. It floats just above the taskbar or pins right
+against it next to the clock, it never steals keyboard focus from your DAW, tab
+viewer or video, and its click is sample accurate.
 
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
-[![Platform: Windows 10 and 11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#install)
+[![Platform: Windows 10 and 11, Linux](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Linux-0078d4)](#install)
 [![Built with Tauri and Rust](https://img.shields.io/badge/built%20with-Tauri%202%20%2B%20Rust-24c8db)](#architecture)
 [![CI](https://github.com/kalaylienes/taktdock/actions/workflows/ci.yml/badge.svg)](https://github.com/kalaylienes/taktdock/actions/workflows/ci.yml)
 [![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/kalaylienes)
@@ -31,6 +31,7 @@ or install it with one line of PowerShell, [below](#install).
 - [Features](#features)
 - [Screenshots](#screenshots)
 - [Install](#install)
+- [On Linux](#on-linux)
 - [Using it](#using-it)
 - [Sounds](#sounds)
 - [Accent colour](#accent-colour)
@@ -94,8 +95,11 @@ that and nothing more.
 - **Any accent colour.** The turquoise is only the default; pick any colour you
   like from a colour square, type a hex value, or start from a preset. The
   tray icon follows.
-- **Light and dark theme** following Windows automatically, or forced from the
-  menu. Honours the reduced motion setting.
+- **Light and dark theme** following the desktop automatically, or forced from
+  the menu. Honours the reduced motion setting.
+- **Windows and Linux** from the same code. On Linux it hangs off a GNOME top
+  bar or stands on a KDE or Xfce panel, with the same menu and the same sound.
+  [What works where](#on-linux).
 - **Updates itself** when you say so, with an installer signed by a key compiled
   into the app. Nothing is downloaded or installed without a click.
 - **Light on the machine:** about 30 MB of memory and well under one percent of
@@ -125,9 +129,10 @@ is playing, the volume (scroll it) and the sound (click to switch).</sub>
 
 ## Install
 
-**Requirements:** Windows 10 or Windows 11, 64 bit. The WebView2 runtime that
-ships with Windows 11 and current Windows 10 is used; the installer fetches it
-if it is missing.
+**Requirements:** Windows 10 or Windows 11, 64 bit, or a 64 bit Linux desktop.
+On Windows the WebView2 runtime that ships with Windows 11 and current Windows
+10 is used, and the installer fetches it if it is missing. For Linux, see
+[On Linux](#on-linux).
 
 ### From the releases page
 
@@ -147,6 +152,29 @@ which is just `taktdock.exe`.
 The app is not code signed yet, so Windows SmartScreen may warn the first time
 you run it. Choose **More info**, then **Run anyway**, or build it yourself and
 read the code first.
+
+### Linux packages
+
+Download `TaktDock_1.0.0_amd64.AppImage` from the
+[releases page](https://github.com/kalaylienes/taktdock/releases), make it
+executable and run it:
+
+```bash
+chmod +x TaktDock_1.0.0_amd64.AppImage
+./TaktDock_1.0.0_amd64.AppImage
+```
+
+On Debian and Ubuntu the `.deb` installs it properly, with a menu entry and an
+icon:
+
+```bash
+sudo apt install ./TaktDock_1.0.0_amd64.deb
+```
+
+It pulls in what it needs: `libwebkit2gtk-4.1-0`, `libgtk-3-0` and
+`libayatana-appindicator3-1`, which is the tray icon. To build it from source
+instead, install the same development packages the
+[build](#build-it-yourself-on-linux) section lists.
 
 ### Build it yourself
 
@@ -188,6 +216,29 @@ read the code first.
 To try it without installing anything, `npm run app:dev` starts it from the
 source tree with live reload of the interface.
 
+### Build it yourself on Linux
+
+1. The development packages, on Debian or Ubuntu:
+
+   ```bash
+   sudo apt install build-essential curl file git pkg-config patchelf \
+     libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+     librsvg2-dev libasound2-dev libdbus-1-dev libssl-dev libxdo-dev
+   ```
+
+   With Node 20 or newer and a Rust toolchain from
+   [rustup](https://rustup.rs), then:
+
+   ```bash
+   git clone https://github.com/kalaylienes/taktdock.git
+   cd taktdock
+   npm install
+   npm run tauri build -- --bundles appimage,deb
+   ```
+
+2. The results land in `src-tauri/target/release/bundle/`. Or run it straight
+   from the source tree with `npm run app:dev`.
+
 ### After installing
 
 - The widget appears in the bottom right corner, above the taskbar.
@@ -200,6 +251,53 @@ source tree with live reload of the interface.
 **Settings → Apps → Installed apps → TaktDock → Uninstall**, or run
 `%LOCALAPPDATA%\TaktDock\uninstall.exe`. Your settings stay in
 `%APPDATA%\TaktDock`; delete that folder too to remove every trace.
+
+On Linux, `sudo apt remove takt-dock` for the package, or delete the AppImage.
+The settings live in `~/.config/TaktDock`.
+
+## On Linux
+
+A Linux panel is not a Windows taskbar. It is full from end to end, it is drawn
+by the desktop rather than by a window anybody else may stand on, and on a
+Wayland session no application is allowed to say where its own window goes.
+TaktDock works with that rather than against it.
+
+- **Where it sits.** Floating, in the corner of the work area, is the default
+  and behaves exactly as it does on Windows. **Pinned** puts it against the
+  panel rather than inside it: under a GNOME top bar, on top of a KDE or Xfce
+  panel at the bottom, always at the end where the clock and the tray icons
+  are.
+- **Making room for the tray.** Windows can be asked where its notification
+  area begins. A panel cannot, so the first guess leaves 160 pixels. Drag the
+  widget along the panel once and it remembers, for good. **Monitor → Reset
+  position** forgets it again.
+- **Wayland.** The widget runs through XWayland so that it can place itself,
+  which is why it works on a GNOME or KDE Wayland session at all. Set
+  `TAKTDOCK_BACKEND=wayland` to override that and let the compositor decide
+  where the window goes.
+
+### What works where
+
+| | GNOME (Wayland) | KDE Plasma (Wayland) | Xfce and other X11 desktops |
+| --- | --- | --- | --- |
+| Floating placement | yes | yes | yes |
+| Pinned against the panel | yes | yes | yes |
+| Dragging it along the panel | yes | yes | yes |
+| Tray icon and its menu | with the AppIndicator extension, which Ubuntu ships | yes | yes |
+| Never takes the keyboard | yes | yes | yes |
+| Hides for a fullscreen window | X11 and XWayland apps, which is what games are | the same | yes |
+| Theme follows the desktop | yes | yes | yes |
+| Updates itself | no, the package manager or the AppImage does that | the same | the same |
+
+Vanilla GNOME needs the
+[AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/)
+for a tray icon, as every tray application does; Ubuntu enables it already.
+Nothing else is needed anywhere.
+
+A fullscreen window that is a native Wayland client is invisible to every other
+client, by design of the protocol, so the widget cannot hide for it. Games are
+not usually affected: Proton, Wine and Steam itself reach the screen through
+XWayland, and those are seen.
 
 ## Using it
 
@@ -266,6 +364,8 @@ output.
   taskbar is, so restarting Explorer cannot break it and it reserves no space.
 - A vertical taskbar has no room for the strip, so pinning falls back to
   floating there.
+- On Linux the pinned widget stands against the panel rather than inside it,
+  and is dragged along it by its background. [More above](#on-linux).
 
 ## Sounds
 
@@ -331,6 +431,8 @@ The first four reach the copy that is already running, so they work from a
 script, a hotkey tool such as AutoHotkey, or a Stream Deck button. When
 nothing is running, they start TaktDock and then do the same.
 
+On Linux the binary is `taktdock`; everything else is the same.
+
 | Command | Effect |
 | --- | --- |
 | `taktdock.exe --toggle` | Play or stop |
@@ -344,8 +446,9 @@ widget back.
 
 ## Configuration
 
-Everything in the menus is saved to `%APPDATA%\TaktDock\settings.json`. You can
-edit it by hand while TaktDock is closed; a byte order mark from Notepad is
+Everything in the menus is saved to `%APPDATA%\TaktDock\settings.json`, or
+`~/.config/TaktDock/settings.json` on Linux. You can edit it by hand while
+TaktDock is closed; a byte order mark from Notepad is
 fine, and anything out of range is brought back into range.
 
 | Key | Meaning |
@@ -358,6 +461,7 @@ fine, and anything out of range is brought back into range.
 | `metronome.output_device` | Output by name, `null` for the system default |
 | `appearance.accent` | `#rrggbb`, or `null` for the default turquoise |
 | `widget.tray_gap` | Gap between the pinned strip and the notification area, in pixels |
+| `widget.edge_offset_x` | On Linux, how far the pinned widget was dragged along the panel |
 
 `TAKTDOCK_DATA_DIR` moves the whole data folder, so a second copy can run
 beside an installed one without sharing settings.
@@ -412,12 +516,26 @@ Not built in yet. Until it has, bind `taktdock.exe --toggle` to a key in
 AutoHotkey, PowerToys or your keyboard software.
 
 **Does it run on macOS or Linux?**
-Not yet as a release. The code builds on Linux and CI checks it on every push;
-Linux packages are planned for version 1.1. macOS is not planned.
+Linux, yes: an AppImage and a `.deb`, tested on GNOME, KDE Plasma and Xfce.
+See [On Linux](#on-linux) for what works on which desktop. macOS is not
+planned.
+
+**Why does the widget sit next to my panel instead of in it?**
+Because a Linux panel is full. A Windows taskbar has empty space a window may
+stand on, and the widget uses it; a panel draws its own contents from end to
+end, and a window manager that reserves space for it will push anything else
+back out. Against the panel is both what fits and what the window manager was
+going to do anyway.
+
+**My panel is on the left, or my tray is somewhere else.**
+A vertical panel has no room for the widget, so it floats instead. If the
+widget overlaps something at the end of a horizontal panel, drag it along the
+panel once; it stays where you put it.
 
 **Where are the logs?**
-`%APPDATA%\TaktDock\logs`. **Diagnostics → Save report** puts everything useful
-for a bug report in one file next to them. If the app ever crashes,
+`%APPDATA%\TaktDock\logs`, or `~/.config/TaktDock/logs` on Linux.
+**Diagnostics → Save report** puts everything useful for a bug report in one
+file next to them. If the app ever crashes,
 `last-crash.txt` in the same folder names the place and the thread.
 
 ## Performance

@@ -3,11 +3,19 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
+use tauri::{AppHandle, Emitter, Manager};
+// Only the Windows placement goes through tauri; the Linux one goes through
+// GTK, which needs more than a position and a size to make them stick.
+#[cfg(windows)]
+use tauri::{PhysicalPosition, PhysicalSize};
 
 use crate::state::AppState;
 
 pub const WIDGET_LABEL: &str = "widget";
+
+/// The window's title, from `tauri.conf.json`. On Linux it is how the widget
+/// finds its own X11 window among the windows this process owns.
+pub const WIDGET_TITLE: &str = "TaktDock";
 
 /// Differences below this are compositor rounding, not a deliberate move.
 /// Persisting them would accumulate into visible drift across restarts.
@@ -79,6 +87,7 @@ pub fn set_content_height(app: &AppHandle, logical_h: f64) {
     if MEASURED_HEIGHT.swap(hundredths, Ordering::SeqCst) == hundredths {
         return;
     }
+    tracing::debug!("the interface measured {logical_h} logical pixels of content");
     reposition(app);
 }
 
@@ -141,24 +150,22 @@ pub fn open_accent_picker(app: &AppHandle) {
     }
 }
 
-/// Applies a size to a window the user is not allowed to resize.
+/// Puts the window at a place and a size.
 ///
-/// GTK pins such a window to the size hints it was realised with and drops
-/// every later resize on the floor, so on Linux the widget stayed at the height
-/// the manifest declares however tall the interface said its rows were: two
-/// rows floated in the middle of a box built for four. Lifting the flag for the
-/// one call and putting it straight back is the only way through, and it never
-/// puts a grip on screen because the window has no decorations to grow one.
+/// On Windows the two are separate calls, with the move repeated around the
+/// resize: crossing a DPI boundary otherwise leaves the window at the wrong
+/// size. On Linux both have to happen in the same turn of the main loop, and
+/// the size needs more than a size: see `linux::place`.
 #[cfg(windows)]
-fn resize(win: &tauri::WebviewWindow, w: u32, h: u32) {
+fn place(win: &tauri::WebviewWindow, x: i32, y: i32, w: u32, h: u32) {
+    let _ = win.set_position(PhysicalPosition::new(x, y));
     let _ = win.set_size(PhysicalSize::new(w, h));
+    let _ = win.set_position(PhysicalPosition::new(x, y));
 }
 
 #[cfg(not(windows))]
-fn resize(win: &tauri::WebviewWindow, w: u32, h: u32) {
-    let _ = win.set_resizable(true);
-    let _ = win.set_size(PhysicalSize::new(w, h));
-    let _ = win.set_resizable(false);
+fn place(win: &tauri::WebviewWindow, x: i32, y: i32, w: u32, h: u32) {
+    crate::linux::place(win, x, y, w, h);
 }
 
 pub fn reposition(app: &AppHandle) {
@@ -213,8 +220,20 @@ pub fn reposition(app: &AppHandle) {
                     // session is locked or Explorer is restarting. Rewriting the
                     // preference here would quietly undo the user's choice, so
                     // this pass is simply skipped.
-                    tracing::debug!("taskbar not reachable, leaving placement untouched");
-                    return;
+                    #[cfg(windows)]
+                    {
+                        tracing::debug!("taskbar not reachable, leaving placement untouched");
+                        return;
+                    }
+                    // On Linux there may simply be no panel to pin into, on this
+                    // monitor or at all. The widget floats for this pass and the
+                    // preference is kept, so plugging in a screen with a panel,
+                    // or a panel coming back after a restart, puts it back.
+                    #[cfg(not(windows))]
+                    {
+                        tracing::debug!("no panel found, floating for this pass");
+                        None
+                    }
                 }
             }
         } else {
@@ -248,6 +267,16 @@ pub fn reposition(app: &AppHandle) {
             }
         };
 
+        // On Linux the panel cannot say where its notification area begins, so
+        // the horizontal offset is the user's correction, dragged once and
+        // remembered. On Windows the tray is measured and nothing is guessed.
+        #[cfg(not(windows))]
+        let (x, y, w, h) = if taskbar_target.is_some() {
+            (x - s.widget.edge_offset_x, y, w, h)
+        } else {
+            (x, y, w, h)
+        };
+
         if pinned
             && s.widget.visible
             && !AUTO_HIDDEN.load(Ordering::SeqCst)
@@ -257,11 +286,24 @@ pub fn reposition(app: &AppHandle) {
         }
 
         suppress_moves(1500);
-        // Position first, then size, then position again: moving across a DPI
-        // boundary otherwise leaves the window at the wrong size.
-        let _ = win.set_position(PhysicalPosition::new(x, y));
-        resize(&win, w as u32, h as u32);
-        let _ = win.set_position(PhysicalPosition::new(x, y));
+        place(&win, x, y, w as u32, h as u32);
+
+        // What was asked for and what the window system did with it. The two
+        // differ often enough on Linux, where a toolkit sits between the two,
+        // that a report with only one of them answers nothing.
+        if tracing::enabled!(tracing::Level::DEBUG) {
+            let got = win
+                .outer_position()
+                .ok()
+                .zip(win.outer_size().ok())
+                .map(|(p, s)| format!("{},{} {}x{}", p.x, p.y, s.width, s.height))
+                .unwrap_or_else(|| "unknown".into());
+            tracing::debug!(
+                "placed {} at {x},{y} {w}x{h} on {}, window is now {got}",
+                if pinned { "pinned" } else { "floating" },
+                mon.friendly_name
+            );
+        }
         let _ = win.set_always_on_top(true);
         apply_ex_styles(app);
 
@@ -301,6 +343,8 @@ fn finalize_move(app: &AppHandle) {
     let Some(win) = widget(app) else { return };
 
     // In taskbar mode the position is derived, so there is nothing to learn.
+    // Except on Linux, where the one thing that cannot be derived is how much
+    // of the panel's end its clock and icons take.
     if app
         .state::<Arc<AppState>>()
         .settings
@@ -308,6 +352,8 @@ fn finalize_move(app: &AppHandle) {
         .widget
         .taskbar_mode()
     {
+        #[cfg(not(windows))]
+        finalize_panel_move(app);
         return;
     }
 
@@ -359,6 +405,53 @@ fn finalize_move(app: &AppHandle) {
         s.widget.edge_offset_y = offset_y;
     });
     crate::tray::rebuild(app);
+}
+
+/// Stores how far the user dragged the pinned widget along the panel.
+///
+/// Only the horizontal part is learned: which edge of the screen the widget
+/// sits on, and how tall it is, belong to the panel. Windows has no need for
+/// this, because there the notification area is a window and can be measured.
+#[cfg(not(windows))]
+fn finalize_panel_move(app: &AppHandle) {
+    use crate::monitor;
+
+    let Some(win) = widget(app) else { return };
+    if !win.is_visible().unwrap_or(false) {
+        return;
+    }
+    let Ok(pos) = win.outer_position() else { return };
+
+    let state = app.state::<Arc<AppState>>();
+    let s = state.settings.get();
+    let Some((mon, _)) = monitor::resolve(s.widget.monitor_stable_id.as_deref()) else {
+        return;
+    };
+    let Some(bar) = monitor::taskbar_for(&mon) else {
+        return;
+    };
+    let Some((base_x, _, _, _)) = monitor::taskbar_position(
+        &mon,
+        &bar,
+        s.widget.tray_gap,
+        s.appearance.compact,
+    ) else {
+        return;
+    };
+
+    let offset = base_x - pos.x;
+    let snapped = if offset.abs() < OFFSET_NOISE_PX {
+        0
+    } else {
+        offset
+    };
+    if s.widget.edge_offset_x == snapped {
+        return;
+    }
+    tracing::info!("pinned widget moved along the panel, offset now {snapped}");
+    state
+        .settings
+        .update(|s| s.widget.edge_offset_x = snapped);
 }
 
 /// Shows the widget because the user asked for it, from the tray or by starting
@@ -428,7 +521,9 @@ pub fn apply_ex_styles(app: &AppHandle) {
 }
 
 #[cfg(not(windows))]
-pub fn apply_ex_styles(_app: &AppHandle) {}
+pub fn apply_ex_styles(app: &AppHandle) {
+    crate::linux::apply_window_hints(app);
+}
 
 /// Brings the window forward so the context menu can dismiss on an outside
 /// click. `WS_EX_NOACTIVATE` may refuse; the menu still opens.
@@ -687,8 +782,27 @@ fn ensure_on_top(app: &AppHandle) {
     }
 }
 
+/// The same job over X11: only when the widget is really covered, and through
+/// the window manager rather than around it.
 #[cfg(not(windows))]
-fn ensure_on_top(_app: &AppHandle) {}
+fn ensure_on_top(app: &AppHandle) {
+    let Some(win) = widget(app) else { return };
+    if !win.is_visible().unwrap_or(false) {
+        return;
+    }
+    let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) else {
+        return;
+    };
+    let ours = crate::monitor::Rect::from_size(
+        pos.x,
+        pos.y,
+        size.width as i32,
+        size.height as i32,
+    );
+    if crate::x11::ensure_above(WIDGET_TITLE, ours) {
+        tracing::debug!("something was stacked over the widget, asked to be raised");
+    }
+}
 
 /// Keeps taskbar placement visible when it should be.
 ///
@@ -1250,7 +1364,7 @@ fn foreground_covering_window(
 
 #[cfg(not(windows))]
 fn power_saver() -> bool {
-    false
+    crate::linux::power_saver()
 }
 
 #[cfg(test)]

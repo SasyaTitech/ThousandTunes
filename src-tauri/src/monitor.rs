@@ -68,6 +68,25 @@ pub const PINNED_W: f64 = 208.0;
 /// The compact strip drops the slider row and keeps the dots and the tempo.
 pub const PINNED_COMPACT_W: f64 = 124.0;
 
+/// The shortest strip the widget can sit inside. Below this the two rows and
+/// their frame do not fit, and the widget is placed against the panel instead
+/// of in it. A Windows taskbar is 48 and a KDE panel 44, both of which host it;
+/// a GNOME top bar is 32, which does not.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub const PINNED_INSIDE_MIN_H: f64 = 36.0;
+
+/// How tall the widget is when it hugs a panel rather than sitting inside one.
+/// Two rows of 15 with 2 between, 3 of padding each side and a 1 pixel border,
+/// plus the 4 pixels of slack a Windows taskbar leaves it.
+pub const PINNED_ADJACENT_H: f64 = 44.0;
+
+/// How much of a Linux panel's right hand end is left alone, where the clock
+/// and the notification icons usually live. Unlike Windows, where the
+/// notification area is a window that can be measured, nothing here can be
+/// asked: a panel draws its own contents. This is the first guess, and
+/// dragging the widget corrects it for good.
+pub const PANEL_RESERVE: f64 = 160.0;
+
 /// A rectangle in physical pixels.
 ///
 /// The field names are deliberately the same as `windows::Win32::Foundation::RECT`
@@ -470,8 +489,9 @@ pub fn taskbar_width_logical(compact: bool) -> f64 {
     }
 }
 
-/// Left of the notification area, centred in the strip. A vertical taskbar
-/// cannot fit the widget, so the caller falls back to floating placement.
+/// Left of the notification area, in the strip where there is room for the
+/// widget and against it where there is not. A vertical taskbar cannot fit the
+/// widget either way, so the caller falls back to floating placement.
 pub fn taskbar_position(
     monitor: &MonitorInfo,
     bar: &TaskbarInfo,
@@ -482,17 +502,36 @@ pub fn taskbar_position(
         return None;
     }
     let scale = monitor.scale();
-    let strip_h = bar.rect.bottom - bar.rect.top;
-    let h = (strip_h - (4.0 * scale).round() as i32).max((24.0 * scale).round() as i32);
     let w = (taskbar_width_logical(compact) * scale).round() as i32;
     let gap = (tray_gap_logical as f64 * scale).round() as i32;
+    let x = bar.tray_left - w - gap;
 
-    Some((
-        bar.tray_left - w - gap,
-        bar.rect.top + (strip_h - h) / 2,
-        w,
-        h,
-    ))
+    // Sitting inside the bar is a Windows idea. A taskbar there is mostly
+    // empty, and a window may be put over it. A Linux panel is neither: it is
+    // full from end to end, and a window manager that reserves space for it
+    // will not let an ordinary window stand on it, so asking is answered by
+    // being pushed back out. Against the panel is both what fits and what the
+    // window manager was going to do anyway.
+    #[cfg(windows)]
+    {
+        let strip_h = bar.rect.bottom - bar.rect.top;
+        if strip_h >= (PINNED_INSIDE_MIN_H * scale).round() as i32 {
+            let h = (strip_h - (4.0 * scale).round() as i32).max((24.0 * scale).round() as i32);
+            return Some((x, bar.rect.top + (strip_h - h) / 2, w, h));
+        }
+    }
+
+    // Against the bar: under one along the top of the screen, over one along
+    // the bottom. The widget keeps its full height and covers nothing the bar
+    // is drawing.
+    let h = (PINNED_ADJACENT_H * scale).round() as i32;
+    let top_panel = bar.rect.top <= monitor.bounds.top + 1;
+    let y = if top_panel {
+        bar.rect.bottom
+    } else {
+        bar.rect.top - h
+    };
+    Some((x, y, w, h))
 }
 
 #[cfg(windows)]
@@ -533,15 +572,45 @@ fn taskbar_rect() -> Option<Rect> {
     None
 }
 
+/// The panel on this monitor, by whichever route this session allows.
+///
+/// Unlike the Windows taskbar, a panel cannot be asked where its notification
+/// area begins: it draws its own contents and publishes nothing about them. So
+/// `tray_left` is the panel's right hand end less a fixed reserve, and the user
+/// corrects it once by dragging, which is remembered as the horizontal offset.
 #[cfg(not(windows))]
-pub fn taskbar_for(_monitor: &MonitorInfo) -> Option<TaskbarInfo> {
-    None
+pub fn taskbar_for(monitor: &MonitorInfo) -> Option<TaskbarInfo> {
+    let panel = crate::x11::panel_on(monitor.bounds, monitor.work)?;
+    if !panel.edge.horizontal() {
+        return None;
+    }
+    let scale = monitor.scale();
+    let reserve = (PANEL_RESERVE * scale).round() as i32;
+    let on_screen = intersect_area(&panel.rect, &monitor.bounds) > 0;
+
+    Some(TaskbarInfo {
+        tray_left: panel.rect.right - reserve,
+        rect: panel.rect,
+        horizontal: true,
+        auto_hide: !panel.reserves_space,
+        on_screen,
+    })
 }
 
-/// Whether this desktop has a panel the widget can be pinned into. Only the
-/// Windows taskbar is understood, so pinned placement is offered nowhere else.
+/// Whether this desktop has a panel the widget can be pinned into.
+///
+/// On Windows the taskbar is always there. On Linux it depends on the session:
+/// the panel has to be reachable, which means an X server, and it has to be
+/// along the top or the bottom rather than down one side.
 pub fn supports_panel_docking() -> bool {
-    cfg!(windows)
+    #[cfg(windows)]
+    {
+        true
+    }
+    #[cfg(not(windows))]
+    {
+        crate::x11::is_available() && enumerate().iter().any(|m| taskbar_for(m).is_some())
+    }
 }
 
 #[cfg(windows)]
@@ -1085,6 +1154,7 @@ pub(crate) mod tests {
 
     /// Two pixels clear of the strip above and below, left of the tray by the
     /// configured gap, and never shorter than the two rows it has to hold.
+    #[cfg(windows)]
     #[test]
     fn a_pinned_widget_sits_inside_the_strip() {
         let lg = &tests::desk()[0];
@@ -1098,6 +1168,30 @@ pub(crate) mod tests {
         assert_eq!(h, 32);
     }
 
+    /// A panel is never sat in, whatever its height: the widget stands on top
+    /// of one along the bottom of the screen and hangs under one along the top.
+    #[cfg(not(windows))]
+    #[test]
+    fn a_pinned_widget_stands_against_the_panel() {
+        let lg = &tests::desk()[0];
+        let (x, y, w, h) = taskbar_position(lg, &strip(48), 8, false).expect("horizontal");
+        assert_eq!((w, h), (208, 44));
+        assert_eq!(x, 2300 - 208 - 8);
+        assert_eq!(y, 1440 - 48 - 44);
+
+        // The same for a tall panel, where Windows would have sat inside it.
+        let (_, y, _, h) = taskbar_position(lg, &strip(64), 8, false).expect("horizontal");
+        assert_eq!((y, h), (1440 - 64 - 44, 44));
+
+        // And a panel along the top is hung from rather than stood on.
+        let top = TaskbarInfo {
+            rect: Rect::from_size(0, 0, 2560, 32),
+            ..strip(32)
+        };
+        let (_, y, _, h) = taskbar_position(lg, &top, 8, false).expect("horizontal");
+        assert_eq!((y, h), (32, 44));
+    }
+
     #[test]
     fn a_vertical_taskbar_cannot_host_the_strip() {
         let lg = &tests::desk()[0];
@@ -1108,8 +1202,15 @@ pub(crate) mod tests {
         assert!(taskbar_position(lg, &bar, 8, false).is_none());
     }
 
+    /// Windows always has a taskbar to pin to. Linux has one only when a
+    /// panel that reserves space is found, which in a test process with no
+    /// display it is not.
     #[test]
-    fn pinning_to_a_panel_is_a_windows_only_offer() {
-        assert_eq!(supports_panel_docking(), cfg!(windows));
+    fn pinning_is_offered_only_where_there_is_something_to_pin_to() {
+        if cfg!(windows) {
+            assert!(supports_panel_docking());
+        } else if !crate::x11::is_available() {
+            assert!(!supports_panel_docking());
+        }
     }
 }

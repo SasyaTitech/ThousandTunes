@@ -52,6 +52,9 @@ mod imp {
         active_window: u32,
         wm_state: u32,
         fullscreen: u32,
+        window_type: u32,
+        type_desktop: u32,
+        type_dock: u32,
         net_wm_name: u32,
         utf8_string: u32,
     }
@@ -84,6 +87,9 @@ mod imp {
             active_window: atom("_NET_ACTIVE_WINDOW")?,
             wm_state: atom("_NET_WM_STATE")?,
             fullscreen: atom("_NET_WM_STATE_FULLSCREEN")?,
+            window_type: atom("_NET_WM_WINDOW_TYPE")?,
+            type_desktop: atom("_NET_WM_WINDOW_TYPE_DESKTOP")?,
+            type_dock: atom("_NET_WM_WINDOW_TYPE_DOCK")?,
             net_wm_name: atom("_NET_WM_NAME")?,
             utf8_string: atom("UTF8_STRING")?,
             conn,
@@ -138,6 +144,16 @@ mod imp {
     /// well behaved application declares `_NET_WM_STATE_FULLSCREEN`, while a
     /// game that took over the screen by sizing itself to it declares nothing.
     fn covers_its_monitor(session: &Session, window: Window) -> Option<Rect> {
+        // The desktop is the size of the screen and is the focused window
+        // whenever nothing else is, which on Xfce and on anything else drawing
+        // its own desktop would otherwise read as a game that has just started
+        // and hide the widget for as long as the session lasts. A dock is
+        // ruled out for the same reason: on a small screen a panel can be as
+        // wide as the display, and neither of them is ever in front.
+        if is_background(session, window) {
+            return None;
+        }
+
         let rect = geometry(session, window)?;
         let width = rect.right - rect.left;
         let height = rect.bottom - rect.top;
@@ -157,6 +173,27 @@ mod imp {
             && rect.bottom >= bounds.bottom;
 
         covers.then_some(rect)
+    }
+
+    /// Whether the window is one of the two kinds that are always behind
+    /// everything else: the desktop, and a panel or dock.
+    fn is_background(session: &Session, window: Window) -> bool {
+        let Ok(cookie) =
+            session
+                .conn
+                .get_property(false, window, session.window_type, AtomEnum::ATOM, 0, 32)
+        else {
+            return false;
+        };
+        let Ok(reply) = cookie.reply() else {
+            return false;
+        };
+        reply
+            .value32()
+            .map(|mut kinds| {
+                kinds.any(|kind| kind == session.type_desktop || kind == session.type_dock)
+            })
+            .unwrap_or(false)
     }
 
     fn declares_fullscreen(session: &Session, window: Window) -> bool {

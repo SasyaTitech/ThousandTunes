@@ -11,6 +11,8 @@ export interface AppearanceConfig {
   motion_allowed: boolean;
   /** `#rrggbb`, or null for the built in turquoise. */
   accent: string | null;
+  /** Whether a pinned widget can be dragged along the panel. Linux only. */
+  pinned_draggable: boolean;
 }
 
 /** What the metronome is doing. Sent as the `transport` event. */

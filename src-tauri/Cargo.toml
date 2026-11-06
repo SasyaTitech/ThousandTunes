@@ -50,6 +50,12 @@ notify-debouncer-full = "0.5"
 # depend on at run time.
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.13"
+# The window hints that keep the widget from taking focus are GTK's to set, and
+# tauri hands over its GtkWindow. The version has to match the one tao uses.
+gtk = "0.18"
+# Real time priority for the render thread, the way the Windows build gets it
+# from MMCSS. On Linux it goes through rtkit, which needs D-Bus.
+cpal = { version = "0.18", features = ["realtime-dbus"] }
 
 [target.'cfg(windows)'.dependencies]
 # MMCSS for the render thread. On Linux the same feature is a no-op without a

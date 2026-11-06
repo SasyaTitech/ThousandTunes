@@ -340,27 +340,60 @@ impl Engine {
 
 /// Every output endpoint by name, in the order the system lists them.
 pub fn output_device_names() -> Vec<String> {
-    let host = cpal::default_host();
-    let mut names = Vec::new();
-    if let Ok(devices) = host.output_devices() {
-        for d in devices {
-            if let Ok(desc) = d.description() {
-                let name = desc.name().to_string();
-                if !names.contains(&name) {
-                    names.push(name);
-                }
-            }
-        }
-    }
-    names
+    usable_outputs().into_iter().map(|(name, _)| name).collect()
 }
 
-fn find_device(host: &cpal::Host, name: &str) -> Option<cpal::Device> {
-    host.output_devices().ok()?.find(|d| {
-        d.description()
-            .map(|desc| desc.name() == name)
-            .unwrap_or(false)
-    })
+/// The endpoints worth offering, each with the device behind it. Listing and
+/// opening go through the same function so that what is chosen in the menu is
+/// what is opened, and not another endpoint that happens to share its name.
+fn usable_outputs() -> Vec<(String, cpal::Device)> {
+    let host = cpal::default_host();
+    let Ok(devices) = host.output_devices() else {
+        return Vec::new();
+    };
+    let mut found: Vec<(String, cpal::Device)> = Vec::new();
+    for d in devices {
+        let Ok(desc) = d.description() else { continue };
+        if !worth_offering(&desc) {
+            continue;
+        }
+        let name = desc.name().to_string();
+        if found.iter().any(|(seen, _)| seen == &name) {
+            continue;
+        }
+        found.push((name, d));
+    }
+    found
+}
+
+/// ALSA publishes every PCM its configuration defines, and most of them are
+/// plumbing rather than places for sound to come out: a null sink that throws
+/// samples away, a raw hardware alias that fails while the sound server holds
+/// the card, and one entry per surround layout, all of them carrying the same
+/// name as the card itself. What survives is one entry per output, each of
+/// which opens.
+#[cfg(target_os = "linux")]
+fn worth_offering(desc: &cpal::DeviceDescription) -> bool {
+    let Some(driver) = desc.driver() else {
+        return true;
+    };
+    let kind = driver.split(':').next().unwrap_or(driver);
+    matches!(
+        kind,
+        "default" | "sysdefault" | "pipewire" | "pulse" | "jack" | "hdmi" | "iec958" | "spdif"
+    )
+}
+
+#[cfg(not(target_os = "linux"))]
+fn worth_offering(_desc: &cpal::DeviceDescription) -> bool {
+    true
+}
+
+fn find_device(name: &str) -> Option<cpal::Device> {
+    usable_outputs()
+        .into_iter()
+        .find(|(found, _)| found == name)
+        .map(|(_, device)| device)
 }
 
 fn device_name(d: &cpal::Device) -> String {
@@ -499,7 +532,7 @@ impl Control {
     fn try_preferred(&mut self) -> bool {
         let host = cpal::default_host();
         let device = match &self.wanted {
-            Some(name) => find_device(&host, name),
+            Some(name) => find_device(name),
             None => host.default_output_device(),
         };
         let Some(device) = device else {
@@ -576,7 +609,7 @@ impl Control {
         let mut problem = None;
 
         if let Some(name) = self.wanted.clone() {
-            match find_device(&host, &name) {
+            match find_device(&name) {
                 Some(device) => match self.open(&device).and_then(started) {
                     Ok((stream, rate)) => {
                         tracing::info!("output open on {name} at {rate} Hz");

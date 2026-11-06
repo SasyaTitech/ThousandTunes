@@ -20,7 +20,7 @@ export function Pill({ label, title, menu, onCycle }: Props) {
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        invoke("show_pill_menu", { pill: menu }).catch(() => {});
+        invoke("show_pill_menu", { pill: menu, x: e.clientX, y: e.clientY }).catch(() => {});
       }}
     >
       {label}

@@ -95,6 +95,25 @@ test("a long device name is cut with an ellipsis, not pushed out of the row", as
   const box = (await device.boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(193 + 1);
   expect(await device.evaluate((el) => getComputedStyle(el).textOverflow)).toBe("ellipsis");
+  // And a box the property works in. Inside a flex container it is ignored,
+  // and the name is chopped mid word with nothing to say it was cut.
+  expect(await device.evaluate((el) => getComputedStyle(el).display)).toBe("block");
+  // What is drawn, rather than what was asked for: the last character on
+  // screen must be the ellipsis itself.
+  const drawn = await device.evaluate((el) => {
+    const text = el.firstChild as Text;
+    const range = document.createRange();
+    const box = el.getBoundingClientRect();
+    let last = "";
+    for (let i = 0; i < text.length; i += 1) {
+      range.setStart(text, i);
+      range.setEnd(text, i + 1);
+      const r = range.getBoundingClientRect();
+      if (r.right <= box.right) last = text.data[i];
+    }
+    return last;
+  });
+  expect(drawn).not.toBe("");
 });
 
 test("a device problem is shown in the warning colour with the reason as its tooltip", async ({

@@ -6,6 +6,8 @@ pub mod control;
 pub mod diagnostics;
 #[cfg(not(windows))]
 pub mod fullscreen_x11;
+#[cfg(target_os = "linux")]
+pub mod linux;
 pub mod monitor;
 pub mod settings;
 pub mod shell;
@@ -14,6 +16,7 @@ pub mod theme;
 pub mod tray;
 pub mod update;
 pub mod window;
+pub mod x11;
 
 use std::sync::Arc;
 
@@ -43,20 +46,24 @@ fn set_content_height(app: AppHandle, height: f64) {
 }
 
 #[tauri::command]
-fn show_context_menu(app: AppHandle, window: tauri::WebviewWindow) {
-    popup(&app, &window, tray::build_popup_menu(&app));
+fn show_context_menu(app: AppHandle, window: tauri::WebviewWindow, x: f64, y: f64) {
+    popup(&app, &window, tray::build_popup_menu(&app), (x, y));
 }
 
 /// The short menu behind a right click on the meter or subdivision pill.
 #[tauri::command]
-fn show_pill_menu(app: AppHandle, window: tauri::WebviewWindow, pill: String) {
-    popup(&app, &window, tray::build_pill_menu(&app, &pill));
+fn show_pill_menu(app: AppHandle, window: tauri::WebviewWindow, pill: String, x: f64, y: f64) {
+    popup(&app, &window, tray::build_pill_menu(&app, &pill), (x, y));
 }
 
+/// `at` is where the click was, in the interface's own coordinates. Without it
+/// GTK has no event to take a position from and puts the menu in the middle of
+/// the screen, nowhere near the widget it belongs to.
 fn popup(
     app: &AppHandle,
     window: &tauri::WebviewWindow,
     menu: tauri::Result<tauri::menu::Menu<tauri::Wry>>,
+    at: (f64, f64),
 ) {
     // Built here rather than borrowed from the tray. Showing a menu and
     // swapping the tray's menu each take a mutable borrow of the object they
@@ -76,7 +83,13 @@ fn popup(
     // On Windows the popup runs a modal loop that keeps pumping queued work,
     // and a rebuild landing in the middle of it is still worth deferring.
     let guard = tray::PopupGuard::new();
-    let _ = window.popup_menu(&menu);
+    // On Linux this call does not return until the menu closes, which is what
+    // makes a guard the right shape for the focus it needs while it is open.
+    #[cfg(target_os = "linux")]
+    let focus = crate::linux::MenuFocus::hold(window);
+    let _ = window.popup_menu_at(&menu, tauri::LogicalPosition::new(at.0, at.1));
+    #[cfg(target_os = "linux")]
+    drop(focus);
     drop(guard);
     tray::flush_pending_rebuild(app);
 }
@@ -269,6 +282,12 @@ pub fn run() {
     let _ = STARTED_AT.set(std::time::Instant::now());
     init_logging();
     install_panic_hook();
+
+    // After the log is set up, so the choice is recorded, and well before the
+    // Tauri builder, which is what first asks GTK for a display. The backend
+    // cannot be changed once GTK has one.
+    #[cfg(target_os = "linux")]
+    linux::prefer_x11();
     tracing::info!(
         "TaktDock {} starting, data in {}",
         env!("CARGO_PKG_VERSION"),

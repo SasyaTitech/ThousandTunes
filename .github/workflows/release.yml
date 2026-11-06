@@ -3,9 +3,6 @@ name: Release
 # Pushing a version tag produces the artefacts. The release itself is left as a
 # draft: the notes are worth writing by hand, and a draft can be thrown away
 # without anyone having downloaded the wrong thing.
-#
-# Windows only for 1.0. Linux bundles are planned for 1.1; the code already
-# builds there and CI keeps it that way.
 on:
   push:
     tags: ["v*"]
@@ -111,9 +108,95 @@ jobs:
           path: out/*
           if-no-files-found: error
 
+  linux:
+    name: Linux
+    needs: check
+    # Older than the newest on purpose: a binary built against a newer glibc
+    # will not start on a distribution that ships an older one, and an AppImage
+    # is meant to run wherever it is downloaded.
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev \
+            libasound2-dev \
+            libdbus-1-dev \
+            patchelf
+
+      - run: npm ci
+
+      # The manifest names the Windows target only, so the bundles are chosen
+      # here instead. That keeps the Windows release byte for byte what it was.
+      - name: Build the bundles
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri build -- --config src-tauri/release.conf.json --bundles appimage,deb
+
+      - name: Collect what the release needs
+        run: |
+          set -euo pipefail
+          bundle=src-tauri/target/release/bundle
+          mkdir -p out
+
+          appimage=$(find "$bundle/appimage" -name '*.AppImage' -print -quit)
+          deb=$(find "$bundle/deb" -name '*.deb' -print -quit)
+          # Tauri signs each bundle where it stands and drops a .sig beside it.
+          # Only the AppImage can replace itself, so only it is signed and only
+          # it goes into the updater manifest.
+          for f in "$appimage" "$appimage.sig" "$deb"; do
+            if [ -z "$f" ] || [ ! -f "$f" ]; then
+              echo "missing ${f:-an expected bundle}" >&2
+              ls -R "$bundle" >&2
+              exit 1
+            fi
+          done
+
+          cp "$appimage" "$appimage.sig" "$deb" out/
+
+          node -e '
+            const fs = require("fs");
+            const name = process.argv[1];
+            fs.writeFileSync("out/linux-x86_64.json", JSON.stringify({
+              signature: fs.readFileSync(process.argv[2], "utf8").trim(),
+              url: `https://github.com/${process.env.REPO}/releases/download/${process.env.TAG}/${name}`,
+            }, null, 2));
+          ' "$(basename "$appimage")" "$appimage.sig"
+        env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: out/*
+          if-no-files-found: error
+
   draft:
     name: Draft the release
-    needs: [check, windows]
+    needs: [check, windows, linux]
     runs-on: ubuntu-22.04
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -132,6 +215,7 @@ jobs:
             const read = (f) => JSON.parse(fs.readFileSync(f, "utf8").replace(/^\uFEFF/, ""));
             const platforms = {
               "windows-x86_64": read("artifacts/windows/windows-x86_64.json"),
+              "linux-x86_64": read("artifacts/linux/linux-x86_64.json"),
             };
             fs.writeFileSync("latest.json", JSON.stringify({
               version: process.env.VERSION,
