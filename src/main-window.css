@@ -100,7 +100,8 @@ html.td-main-page, .td-main-page body, .td-main-page #root { background: var(--p
 .td-skin summary::-webkit-details-marker { display: none; }
 .td-skin summary:hover { color: var(--text-primary); }
 .td-skin i { width: 10px; height: 10px; box-shadow: 0 0 0 1px var(--border-strong); transform: rotate(45deg); }
-.td-skin div { position: absolute; z-index: 20; left: calc(100% + 6px); bottom: 0; width: 232px; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; padding: 6px; border: 1px solid var(--border-strong); background: var(--raised); box-shadow: 0 14px 40px #0007; }
+/* The spine scrolls when the window is short, so it clips what hangs out of it: the menu is placed against the window instead. */
+.td-skin div { position: fixed; z-index: 60; left: 84px; bottom: 14px; width: 232px; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; padding: 6px; border: 1px solid var(--border-strong); background: var(--raised); box-shadow: 0 14px 40px #0007; }
 .td-skin div button { display: flex; align-items: center; gap: 12px; border-color: transparent; text-align: left; }
 .td-skin div button:hover { background: var(--field); border-color: transparent; }
 .td-skin div button[aria-checked="true"] { border-color: var(--takt-from); }
@@ -411,6 +412,7 @@ span.td-checked { padding: 5px 0; }
 @media (max-height: 700px) { .td-rail { gap: 12px; padding-top: 14px; } .td-mode-nav button { padding: 13px 12px 7px; } }
 @media (max-width: 860px) {
   .td-app { grid-template-columns: 58px minmax(0, 1fr); }
+  .td-skin div { left: 66px; }
   .td-metro, .st-grid { grid-template-columns: 1fr; }
   .st-hero { grid-template-columns: minmax(0, 1fr); }
   .st-verse { display: none; }

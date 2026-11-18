@@ -275,10 +275,20 @@ test("the window opens on the home page, which starts practice in one click", as
 
 test("a colour scheme is chosen from the header and kept for next time", async ({ page }) => {
   await installTauriMock(page);
+  await page.setViewportSize({ width: 1120, height: 780 });
   await page.goto("/?view=main");
   await expect(page.locator("html")).toHaveAttribute("data-skin", "mo");
   await page.getByText("配色", { exact: true }).click();
   await expect(page.getByRole("radio")).toHaveCount(8);
+  // The whole menu is on screen and in front: nothing clips it or lies over it.
+  const covered = () => page.getByRole("radio").evaluateAll(els => els.filter(el => {
+    const r = el.getBoundingClientRect(), inside = r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
+    return !inside || ![[r.left + 3, r.top + 3], [r.right - 3, r.bottom - 3]].every(([x, y]) => el.contains(document.elementFromPoint(x, y)));
+  }).map(el => el.textContent));
+  expect(await covered()).toEqual([]);
+  await page.setViewportSize({ width: 640, height: 540 });
+  expect(await covered()).toEqual([]);
+  await page.setViewportSize({ width: 1120, height: 780 });
   await page.getByRole("radio", { name: "黛" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-skin", "dai");
   await expect(page.getByRole("radiogroup", { name: "主题配色" })).toBeHidden();
