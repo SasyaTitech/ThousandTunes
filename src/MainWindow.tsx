@@ -16,8 +16,15 @@ type Controls = Partial<Pick<Transport, "bpm" | "subdivision" | "accent_first" |
   output_device?: string;
 };
 const METERS = ["1/4", "2/4", "3/4", "4/4", "5/4", "6/8", "7/8"];
-const PAGES = [["practice", "练习"], ["library", "教材库"], ["stats", "统计"], ["coach", "跟拍练习"], ["metronome", "节拍器与预设"]] as const;
+// The window opens on the home page: the record first, the controls a click away.
+const PAGES = [["home", "主页"], ["practice", "练习"], ["library", "教材库"], ["coach", "跟拍练习"], ["metronome", "节拍器与预设"]] as const;
 type Page = typeof PAGES[number][0];
+/** Palettes for the window; the CSS holds the tokens, this the names and a swatch. */
+const SKINS = [["amber", "琥珀", "#f2a33a"], ["ocean", "海蓝", "#4aa8ff"], ["forest", "森林", "#7cc65a"], ["rose", "玫瑰", "#f0668f"], ["violet", "紫罗兰", "#9b84ff"], ["paper", "浅色纸张", "#f3f0e9"]] as const;
+type Skin = typeof SKINS[number][0];
+function storedSkin(): Skin {
+  try { const v = localStorage.getItem("td-skin"); return SKINS.find(s => s[0] === v)?.[0] ?? "amber"; } catch { return "amber"; }
+}
 /** Played time is written this often, so closing the window loses little. */
 const FLUSH_SECONDS = 10;
 
@@ -26,7 +33,12 @@ function storedItem(): Item | null {
 }
 
 export default function MainWindow() {
-  const [page, setPage] = React.useState<Page>("practice");
+  const [page, setPage] = React.useState<Page>("home");
+  const [skin, setSkin] = React.useState<Skin>(storedSkin);
+  React.useEffect(() => {
+    document.documentElement.dataset.skin = skin;
+    try { localStorage.setItem("td-skin", skin); } catch { /* private mode */ }
+  }, [skin]);
   const [transport, setTransport] = React.useState<Transport | null>(null);
   const [journal, setJournal] = React.useState<Journal | null>(null);
   const [current, setCurrent] = React.useState<Item | null>(storedItem);
@@ -71,7 +83,10 @@ export default function MainWindow() {
     const timers = new Set<number>();
     const update = (t: Transport) => {
       const was = running.current;
-      tickClock(); transportRef.current = t; tickClock();
+      tickClock();
+      // "This run" counts from the press of start; the day's total keeps adding up.
+      if (!was && t.running) clock.current.startSession();
+      transportRef.current = t; tickClock();
       running.current = t.running;
       setTransport(t);
       if (!t.running) {
@@ -159,6 +174,13 @@ export default function MainWindow() {
       <nav className="td-mode-nav" role="tablist" aria-label="页面">
         {PAGES.map(([id, label]) => <button key={id} role="tab" aria-selected={page === id} onClick={() => setPage(id)}>{label}</button>)}
       </nav>
+      <details className="td-skin">
+        <summary title="换一套配色"><i style={{ background: SKINS.find(s => s[0] === skin)![2] }} />配色</summary>
+        <div role="radiogroup" aria-label="主题配色">
+          {SKINS.map(([id, label, color]) => <button type="button" key={id} role="radio" aria-checked={skin === id}
+            onClick={e => { setSkin(id); e.currentTarget.closest("details")!.open = false; }}><i style={{ background: color }} />{label}</button>)}
+        </div>
+      </details>
       <div className="td-streak" aria-label="打卡">
         <span title={`最长连续 ${run.longest} 天`}><b className="num">{run.current}</b>天连续</span>
         {checkedIn && !byHand ? <span className="td-checked">✓ 今日已打卡</span>
@@ -171,11 +193,11 @@ export default function MainWindow() {
     {transport?.device_problem && <p className="td-error td-banner" role="alert">{transport.device_problem}</p>}
 
     <main className="td-page" data-page={page}>
-      {!journal && (page === "practice" || page === "library" || page === "stats") && <p className="jr-empty">正在读取练习记录…</p>}
+      {!journal && (page === "practice" || page === "library" || page === "home") && <p className="jr-empty">正在读取练习记录…</p>}
       {page === "practice" && journal && <Focus journal={journal} book={book} today={today} current={current} pending={clock.current.pendingSeconds} session={clock.current.sessionSeconds}
         transport={transport} metronome={metronome("hero")} select={select} mutate={mutate} flush={() => flush()} setBpm={bpm => void change({ bpm })} openLibrary={() => setPage("library")} />}
       {page === "library" && journal && <Library journal={journal} books={BOOKS} book={book} today={today} current={current} mutate={mutate} practise={item => { select(item); setPage("practice"); }} />}
-      {page === "stats" && journal && <Stats journal={journal} book={book} today={today} />}
+      {page === "home" && journal && <Stats journal={journal} book={book} today={today} practise={item => { if (item) select(item); setPage("practice"); }} openLibrary={() => setPage("library")} />}
       <div hidden={page !== "coach"}><RhythmCoach transport={transport} /></div>
       {page === "metronome" && <div className="td-metro">
         <section className="td-panel" aria-label="节拍设置">

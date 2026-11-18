@@ -1,10 +1,23 @@
-import { addDays, bookTotals, formatDuration, formatMinutes, secondsByDay, streaks, unitLabel, weekdayOf, type Book, type Journal } from "@/lib/journal";
+import { addDays, bookTotals, formatClock, formatDuration, formatMinutes, secondsByDay, streaks, unitLabel, weekdayOf, type Book, type Item, type Journal } from "@/lib/journal";
 
 const WEEKS = 26;
 const level = (minutes: number | undefined) => minutes === undefined ? 0 : minutes < 30 ? 1 : minutes < 60 ? 2 : minutes < 120 ? 3 : 4;
 const shortDate = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
 
-export default function Stats({ journal, book, today }: { journal: Journal; book: Book; today: string }) {
+interface Props {
+  journal: Journal;
+  book: Book;
+  today: string;
+  /** Opens the practice page, on this exercise when one is given. */
+  practise: (item?: Item) => void;
+  openLibrary: () => void;
+}
+
+/**
+ * The page the window opens on: what has been practised, before anything asks
+ * to be operated. Today's list sits here too, so one click starts practising.
+ */
+export default function Stats({ journal, book, today, practise, openLibrary }: Props) {
   const seconds = secondsByDay(journal);
   // Whole minutes are plenty for a calendar and a bar chart.
   const days = new Map([...seconds].map(([day, s]) => [day, Math.round(s / 60)]));
@@ -21,9 +34,22 @@ export default function Stats({ journal, book, today }: { journal: Journal; book
   const peak = Math.max(30, ...fortnight.map(d => days.get(d) ?? 0));
 
   const titles = new Map(book.weeks.flatMap(w => w.exercises).map(e => [e.id, e]));
+  const todayMinutes = days.get(today) ?? 0;
+  const firstDay = [...days.keys()].sort()[0];
+  const listed = [...titles.values()].filter(e => journal.practising.some(i => i.book === book.id && i.exercise === e.id));
+  const secondsToday = (id: string) => journal.entries.find(e => e.book === book.id && e.exercise === id && e.date === today)?.seconds ?? 0;
   const recent = journal.entries.filter(e => e.book === book.id && (e.seconds >= 60 || e.speed !== null || e.passed)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
 
-  return <section className="st" aria-label="统计">
+  return <section className="st" aria-label="主页">
+    <header className="st-hero">
+      <div>
+        <p className="st-kicker">{book.title}</p>
+        <h2>{days.has(today) ? todayMinutes > 0 ? `今天已练 ${formatMinutes(todayMinutes)}` : "今天已打卡" : "今天还没开始练"}</h2>
+        <p className="st-sub">{run.current > 0 ? `已连续打卡 ${run.current} 天` : "目前没有连续打卡"}{firstDay ? ` · 从 ${firstDay} 起共练了 ${days.size} 天` : ""}</p>
+      </div>
+      <button type="button" className="primary st-start" onClick={() => practise()}>开始练习 →</button>
+    </header>
+
     <div className="st-tiles">
       <div data-accent="true"><b className="num">{run.current}</b><span>连续打卡（天）</span></div>
       <div><b className="num">{run.longest}</b><span>最长连续（天）</span></div>
@@ -43,6 +69,17 @@ export default function Stats({ journal, book, today }: { journal: Journal; book
           </div>)}
         </div>
         <p className="st-legend">少<i data-level="0" /><i data-level="1" /><i data-level="2" /><i data-level="3" /><i data-level="4" />多 <span>按当天练习分钟数</span></p>
+      </section>
+
+      <section className="st-panel st-wide" aria-label="今日清单">
+        <h3>今日清单 <small>点一条直接去练</small></h3>
+        {listed.length === 0 ? <p className="st-empty">还没有挑出正在练的项目。<button type="button" onClick={openLibrary}>去教材库挑选</button></p> : <ul className="st-list">
+          {listed.map(e => { const s = secondsToday(e.id), goal = (e.minutes ?? 0) * 60, done = goal > 0 && s >= goal; return <li key={e.id}>
+            <button type="button" data-done={done} aria-label={`去练 ${e.id} ${e.title}`} onClick={() => practise({ book: book.id, exercise: e.id })}>
+              <small className="num">{e.id}</small><span>{e.title}</span>
+              <b className="num">{done ? "✓ " : ""}{formatClock(s)}{goal ? <small> / {e.minutes}:00</small> : null}</b>
+            </button></li>; })}
+        </ul>}
       </section>
 
       <section className="st-panel" aria-label="近 14 天练习时长">
@@ -68,7 +105,7 @@ export default function Stats({ journal, book, today }: { journal: Journal; book
 
       <section className="st-panel st-wide" aria-label="最近记录">
         <h3>最近记录</h3>
-        {recent.length === 0 ? <p className="st-empty">还没有记录。去“教材打卡”保存第一条练习记录吧。</p> : <ul className="st-recent">
+        {recent.length === 0 ? <p className="st-empty">还没有记录。选一条练习、开着节拍器练一会儿，这里就会有记录。</p> : <ul className="st-recent">
           {recent.map(e => { const ex = titles.get(e.exercise); return <li key={`${e.exercise}-${e.date}`}>
             <span className="num">{e.date}</span><span className="st-recent-title"><small>{e.exercise}</small>{ex?.title ?? "（教材中已无此练习）"}</span>
             <b className="num">{e.speed !== null ? `${e.speed} ${ex ? unitLabel(ex) : ""}` : "—"}</b><span className="num">{e.seconds > 0 ? formatDuration(e.seconds) : ""}</span><span className="jr-ok">{e.passed ? "✓ 达标" : ""}</span>

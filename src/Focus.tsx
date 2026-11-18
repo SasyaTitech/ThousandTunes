@@ -38,6 +38,21 @@ export default function Focus({ journal, book, today, current, pending, session,
   const index = exercise ? listed.findIndex(e => e.id === exercise.id) : -1;
   const live = (item: Item) => todaySeconds(journal, item, today) + (sameItem(item, current ?? FREE) ? pending : 0);
   const item: Item = exercise ? { book: book.id, exercise: exercise.id } : FREE;
+  // Taking an exercise off the list keeps its records. The one being played
+  // hands over to its neighbour first, so its pending time is written.
+  // It is asked about first; clearing today's record is offered only when there is one.
+  const [asking, setAsking] = React.useState<string | null>(null);
+  const drop = (id: string, clear: boolean) => {
+    setAsking(null);
+    if (id === exercise?.id) {
+      const next = listed[index + 1] ?? listed[index - 1] ?? null;
+      select(next ? { book: book.id, exercise: next.id } : null);
+    }
+    void (async () => {
+      await mutate("set_journal_practising", { book: book.id, exercises: [id], on: false });
+      if (clear) await mutate("delete_journal_entry", { book: book.id, exercise: id, date: today });
+    })();
+  };
 
   return <div className="fx" data-rail={open ? "open" : "closed"}>
     <aside className="fx-rail" aria-label="今日清单">
@@ -47,6 +62,17 @@ export default function Focus({ journal, book, today, current, pending, session,
         {listed.map(e => {
           const seconds = live({ book: book.id, exercise: e.id }), goal = (e.minutes ?? 0) * 60;
           const done = goal > 0 && seconds >= goal;
+          if (asking === e.id) {
+            const entry = journal.entries.find(x => x.book === book.id && x.exercise === e.id && x.date === today);
+            const has = seconds > 0 || !!entry && (entry.speed !== null || entry.passed || entry.note !== "");
+            return <li key={e.id}><div className="fx-ask" role="group" aria-label={`确认移出 ${e.id}`} onKeyDown={ev => { if (ev.key === "Escape") setAsking(null); }}>
+              <p>把“{e.title}”移出今日清单？</p>
+              <small>{has ? `今天已有记录：练了 ${formatClock(seconds)}${entry?.speed != null ? `，成绩 ${entry.speed}` : ""}。可以保留，也可以一并清除。以前的记录不受影响。` : "以前的记录都会保留，之后可以从教材库再加回来。"}</small>
+              <button type="button" autoFocus onClick={() => drop(e.id, false)}>{has ? "只移出，保留今日记录" : "移出"}</button>
+              {has && <button type="button" className="fx-danger" onClick={() => drop(e.id, true)}>移出并清除今日记录</button>}
+              <button type="button" onClick={() => setAsking(null)}>取消</button>
+            </div></li>;
+          }
           return <li key={e.id}>
             <button type="button" aria-label={`${e.id} ${e.title}`} aria-current={e.id === exercise?.id} data-done={done} title={e.title} onClick={() => select({ book: book.id, exercise: e.id })}>
               <span className="fx-id num">{e.id.replace(/^W(\d+)-EX/, "$1-")}</span>
@@ -54,6 +80,7 @@ export default function Focus({ journal, book, today, current, pending, session,
               <span className="fx-time num">{done ? "✓ " : ""}{formatClock(seconds)}{goal ? <small> / {e.minutes}:00</small> : null}</span>
               <i style={{ width: `${goal ? Math.min(100, seconds / goal * 100) : 0}%` }} />
             </button>
+            <button type="button" className="fx-drop" aria-label={`移出 ${e.id}`} title="移出今日清单（记录保留）" onClick={() => setAsking(e.id)}>×</button>
           </li>;
         })}
       </ol>
@@ -109,8 +136,8 @@ function ExerciseHead({ exercise, journal, book, transport, setBpm }: { exercise
 function Timers({ exercise, seconds, session, running, children }: { exercise: Exercise | null; seconds: number; session: number; running: boolean; children?: React.ReactNode }) {
   const goal = (exercise?.minutes ?? 0) * 60;
   return <div className="fx-timers" data-running={running}>
-    <div><span>本次</span><b className="num" aria-label="本次计时">{formatClock(session)}</b></div>
-    <div className="fx-today"><span>今日{goal > 0 && seconds >= goal ? " · 已练够" : ""}</span>
+    <div title="从这次按下开始算起，停止后再开始会重新计"><span>本次 · 从按下开始</span><b className="num" aria-label="本次计时">{formatClock(session)}</b></div>
+    <div className="fx-today" title="这条练习今天一共练了多久"><span>今日累计{goal > 0 && seconds >= goal ? " · 已练够" : ""}</span>
       <b className="num" aria-label="今日计时">{formatClock(seconds)}{goal ? <small> / {exercise!.minutes}:00</small> : null}</b>
       {goal > 0 && <i role="progressbar" data-done={seconds >= goal} aria-label="今日进度" aria-valuemin={0} aria-valuemax={goal} aria-valuenow={Math.min(goal, seconds)}><u style={{ width: `${Math.min(100, seconds / goal * 100)}%` }} /></i>}</div>
     {children}

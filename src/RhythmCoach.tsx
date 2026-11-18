@@ -78,10 +78,10 @@ export default function RhythmCoach({ transport }: { transport: Transport | null
   const trackProgress = status.length === 0 ? `第 ${Math.max(1, Math.floor(progress) + 1)} 音 · ∞` : `${Math.min(status.length, Math.max(1, Math.floor(progress) + 1))} / ${status.length}`;
 
   return <section className="rc" aria-label="跟拍练习">
-    <div className="rc-heading"><div><span className="rc-eyebrow">RHYTHM LAB · 单音练习</span><h2>把每一下，弹在点上。</h2></div>
-      <span className="rc-badge">{status.active ? status.mode === "monitor" ? "正在检查输入" : status.mode === "calibrate" ? "回送校准中" : "练习中" : "准备就绪"}</span></div>
+    <div className="rc-heading"><div><span className="rc-eyebrow">单音拨弦</span><h2>跟拍练习</h2></div>
+      <span className="rc-badge">{status.active ? status.mode === "monitor" ? "正在检查输入" : status.mode === "calibrate" ? "回送校准中" : "练习中" : "未开始"}</span></div>
     <div className="rc-topline"><span><strong>{calibrating ? 90 : transport?.bpm ?? 120}</strong> BPM · {calibrating ? "回送测试 · 16 拍" : `${config.notes_per_beat === 1 ? "每拍一音" : "每半拍一音"} · ${continuous ? "无限练习" : `${config.length} 音一轮`}`}</span>
-      <span className="rc-muted">{status.calibrated ? `本次已校准 ${signed(status.offset_ms)} ms` : "参考模式 · 尚未校准"}</span></div>
+      <span className="rc-muted">{status.calibrated ? `本次已校准 ${signed(status.offset_ms)} ms` : "还没校准，早晚数值仅供参考"}</span></div>
     <div className="rc-highway" aria-label="音游轨道">
       <div className="rc-track-top"><span>{calibrating ? "接收回送节拍 · 不用弹奏" : "音符从右向左 · 到竖线时拨弦"}</span><span>{status.active && status.start_ms !== null && !countIn ? trackProgress : review ? "练习已结束" : "听四拍，开始"}</span></div>
       <div className="rc-lane"><div className="rc-rail" /><div className="rc-zone" /><div className="rc-hitline"><span>NOW</span></div>
@@ -89,10 +89,10 @@ export default function RhythmCoach({ transport }: { transport: Transport | null
           const result = status.results.find(r => r.index === i);
           return <div key={i} className="rc-note" data-kind={result?.kind ?? "waiting"} style={{ left: `${position(i)}%` }}><span>{result ? result.kind === "good" ? "✓" : result.kind === "miss" ? "–" : "•" : i % config.notes_per_beat === 0 ? "●" : "○"}</span></div>;
         })}
-        {status.start_ms === null && <div className="rc-empty">{status.mode === "monitor" && status.active ? "轻拨一音，观察下方识别次数" : "接好吉他，找到自己的节奏"}</div>}
+        {status.start_ms === null && <div className="rc-empty">{status.mode === "monitor" && status.active ? "轻拨一音，观察下方识别次数" : "选好吉他输入，点下面的“开始跟拍”"}</div>}
       </div>
       <div className="rc-feedback" data-kind={last?.kind ?? "waiting"} aria-live="off">
-        {countIn ? <><strong>{Math.ceil(-progress / (status.mode === "calibrate" ? 1 : config.notes_per_beat))}</strong><span>预备</span></> : last ? <><strong>{labels[last.kind]}</strong><span>{last.delta_ms === null ? "此次不计入早晚统计" : `${status.calibrated ? "" : "参考约 "}${signed(last.delta_ms)} ms`}</span></> : <><strong>{status.active ? "准备" : "LET’S PLAY"}</strong><span>稳定，比追求分数更重要</span></>}
+        {countIn ? <><strong>{Math.ceil(-progress / (status.mode === "calibrate" ? 1 : config.notes_per_beat))}</strong><span>预备</span></> : last ? <><strong>{labels[last.kind]}</strong><span>{last.delta_ms === null ? "此次不计入早晚统计" : `${status.calibrated ? "" : "参考约 "}${signed(last.delta_ms)} ms`}</span></> : <><strong>{status.active ? "准备" : "未开始"}</strong><span>这里会显示每一下是早了还是晚了</span></>}
       </div>
       <div className="rc-legend"><span className="rc-early">● 早了</span><span className="rc-good">● 正好 ±30 ms</span><span className="rc-late">● 晚了</span><span>判定范围为练习设置</span></div>
     </div>
@@ -103,7 +103,7 @@ export default function RhythmCoach({ transport }: { transport: Transport | null
         : <button className="rc-primary" disabled={!ready} onClick={() => void start("practice")}>{review ? continuous ? "再次开始" : "再练一轮" : "开始跟拍"}</button>}
       <button disabled={!ready} onClick={() => void start("monitor")}>检查输入</button>
       <button disabled={busy || status.active} onClick={() => setCalibration(v => !v)}>延迟校准</button>
-      <span className="rc-muted">声音由原有音频引擎保持节拍</span>
+      <span className="rc-muted">速度和拍号用上面的节拍器调</span>
     </div>
 
     {calibration && <div className="rc-calibration">
@@ -112,7 +112,7 @@ export default function RhythmCoach({ transport }: { transport: Transport | null
       <p>按下开始后，会以 90 BPM、25% 音量发出四拍预备和 16 拍测试，结束后恢复原设置。校准只对本次打开的输入／通道和输出组合有效；更改驱动缓冲、效果或接线后请重做。</p>
       <label className="rc-confirm"><input type="checkbox" disabled={status.active} checked={connected} onChange={e => setConnected(e.target.checked)} />我已接好同一信号路径的回送，并关闭输入监听</label>
       <button disabled={!ready || !connected} onClick={() => void start("calibrate")}>开始回送校准</button>
-      <small>暂时没有回送条件，可以先用参考模式。不会通过你弹奏的平均偏差来“自动校准”。</small>
+      <small>没法接回送的话可以不校准直接练，只是早晚的数值仅供参考。</small>
     </div>}
 
     <div className="rc-bottom-grid">
@@ -142,7 +142,7 @@ export default function RhythmCoach({ transport }: { transport: Transport | null
           {recent.notes.map(n => n.delta_ms !== null ? <circle key={`${n.index}-${n.kind}`} cx={chartX(n.index)} cy={60 - Math.max(-90, Math.min(90, n.delta_ms)) / 2} r={config.review_length > 64 ? 1.5 : config.review_length > 32 ? 2.5 : 4} className={`rc-dot-${n.kind}`}><title>第{n.index + 1}音 {signed(n.delta_ms)} ms</title></circle> : <text key={`${n.index}-${n.kind}`} x={chartX(n.index) - 2} y="115" style={{ fontSize: config.review_length > 64 ? 5 : 9 }}>×<title>第{n.index + 1}音 {labels[n.kind]}</title></text>)}
         </svg>
         <div className="rc-counts"><span>识别 <b>{recent.played}</b></span><span>未检测到 <b>{recent.missed}</b></span><span>额外拨弦 <b>{recent.extra}</b></span><span>信号不清 <b>{recent.uncertain}</b></span></div>
-        <p className="rc-muted">{status.calibrated ? "回送已补偿设备偏移；吉他音色和拨弦力度仍会影响识别。" : "未校准时，整体早晚包含设备延迟；先观察波动，不把参考值当成演奏结论。"} 未检测到也可能是轻拨或连奏漏检。本版只判断拨弦时机，不判断音高。</p>
+        <p className="rc-muted">{status.calibrated ? "回送已补偿设备偏移；吉他音色和拨弦力度仍会影响识别。" : "还没校准时，整体早晚里含有设备延迟，数值只能参考，主要看波动。"} 未检测到也可能是轻拨或连奏漏检。只判断拨弦的时机，不判断音高。</p>
       </section>
     </div>
   </section>;

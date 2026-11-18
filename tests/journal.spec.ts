@@ -10,6 +10,9 @@ async function open(page: Page, seed?: (td: any) => void) {
   if (seed) await page.addInitScript(`(${seed.toString()})(window.__TD)`);
   await page.setViewportSize({ width: 1120, height: 780 });
   await page.goto("/?view=main");
+  // The window opens on the home page; most of these tests are about practising.
+  await expect(page.getByRole("region", { name: "主页" })).toBeVisible();
+  await page.getByRole("tab", { name: "练习", exact: true }).click();
   await expect(page.getByRole("region", { name: "当前练习" })).toBeVisible();
 }
 const item = (exercise: string) => ({ book: "shuaishuai-7w-1", exercise });
@@ -111,7 +114,7 @@ test("a day's speed and note can be corrected without touching the counted time"
   });
   await page.getByRole("button", { name: "W1-EX5 1&2指全指板爬格子" }).click();
   await expect(page.getByLabel("今日计时")).toHaveText("10:10 / 10:00");
-  await expect(page.getByText("今日 · 已练够")).toBeVisible();
+  await expect(page.getByText("今日累计 · 已练够")).toBeVisible();
   await expect(page.getByText("✓ 今日已打卡")).toBeVisible();
   await page.getByText("今日记录与备注").click();
   await page.getByLabel("速度", { exact: true }).fill("abc");
@@ -176,7 +179,7 @@ test("statistics summarise days, time and textbook progress", async ({ page }) =
   await expect(page.getByRole("button", { name: "展开清单" })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("practice-collapsed.png") });
 
-  await page.getByRole("tab", { name: "统计" }).click();
+  await page.getByRole("tab", { name: "主页" }).click();
   const tiles = page.locator(".st-tiles");
   await expect(tiles).toContainText("3连续打卡");
   await expect(tiles).toContainText("5累计打卡");
@@ -205,4 +208,98 @@ test("the practice page and library stay usable at the minimum window size", asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("button", { name: "保存记录" }).scrollIntoViewIfNeeded();
   await expect(page.getByRole("button", { name: "保存记录" })).toBeInViewport();
+});
+
+test("an exercise can be taken off the list from the list itself", async ({ page }) => {
+  await open(page, td => {
+    td.journal.practising = ["W1-EX5", "W1-EX6", "W1-EX7"].map(exercise => ({ book: "shuaishuai-7w-1", exercise }));
+    td.journal.entries = [["W1-EX5", 180, 80], ["W1-EX6", 60, null]].map(([exercise, seconds, speed]) => ({ book: "shuaishuai-7w-1", exercise, date: "2026-11-18", seconds, speed, passed: false, note: "" }));
+  });
+  const rail = page.getByRole("complementary", { name: "今日清单" });
+  await rail.getByRole("button", { name: "W1-EX6 1&3指全指板爬格子" }).click();
+
+  await rail.getByRole("listitem").nth(2).hover();
+  await rail.getByRole("button", { name: "移出 W1-EX7" }).click();
+  // Nothing happens until it is confirmed, and it can be called off.
+  const ask = rail.getByRole("group", { name: "确认移出 W1-EX7" });
+  await expect(ask).toContainText("以前的记录都会保留");
+  await ask.getByRole("button", { name: "取消" }).click();
+  await expect(rail.getByRole("listitem")).toHaveCount(3);
+  expect(await calls(page, "set_journal_practising")).toEqual([]);
+  await rail.getByRole("listitem").nth(2).hover();
+  await rail.getByRole("button", { name: "移出 W1-EX7" }).click();
+  await ask.getByRole("button", { name: "移出", exact: true }).click();
+  expect((await calls(page, "set_journal_practising")).at(-1)?.args).toEqual({ book: BOOK, exercises: ["W1-EX7"], on: false });
+  await expect(rail.getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByRole("heading", { name: "1&3指全指板爬格子" })).toBeVisible();
+
+  // Dropping the one being played moves on to its neighbour, then to free practice.
+  await rail.getByRole("button", { name: "移出 W1-EX6" }).click();
+  await rail.getByRole("button", { name: "只移出，保留今日记录" }).click();
+  await expect(page.getByRole("heading", { name: "1&2指全指板爬格子" })).toBeVisible();
+  expect(await calls(page, "delete_journal_entry")).toEqual([]);
+  expect(await page.evaluate(() => (window as any).__TD.journal.entries.length)).toBe(2);
+  await expect(rail.getByRole("listitem")).toHaveCount(1);
+  await rail.getByRole("button", { name: "移出 W1-EX5" }).click();
+  await expect(rail.getByRole("group", { name: "确认移出 W1-EX5" })).toContainText("今天已有记录：练了 3:00，成绩 80");
+  await rail.getByRole("button", { name: "移出并清除今日记录" }).click();
+  await expect(page.getByRole("heading", { name: "自由练习" })).toBeVisible();
+  expect((await calls(page, "delete_journal_entry")).map(c => c.args)).toEqual([{ book: BOOK, exercise: "W1-EX5", date: "2026-11-18" }]);
+  // Only today's record of that exercise went.
+  expect(await page.evaluate(() => (window as any).__TD.journal.entries.map((e: any) => e.exercise + " " + e.date))).toEqual(["W1-EX6 2026-11-18"]);
+  await expect(page.getByText("清单是空的")).toBeVisible();
+});
+
+test("the window opens on the home page, which starts practice in one click", async ({ page }) => {
+  await installTauriMock(page);
+  await page.clock.install({ time: NOW });
+  await page.addInitScript(() => {
+    const td = (window as any).__TD;
+    td.journal.practising = ["W1-EX5", "W1-EX6"].map(exercise => ({ book: "shuaishuai-7w-1", exercise }));
+    td.journal.entries = [{ book: "shuaishuai-7w-1", exercise: "W1-EX5", date: "2026-11-18", seconds: 720, speed: 80, passed: false, note: "" }];
+  });
+  await page.setViewportSize({ width: 1120, height: 780 });
+  await page.goto("/?view=main");
+  const home = page.getByRole("region", { name: "主页" });
+  await expect(page.getByRole("tab", { name: "主页" })).toHaveAttribute("aria-selected", "true");
+  await expect(home.getByRole("heading", { name: "今天已练 12 分钟" })).toBeVisible();
+  await expect(home.getByRole("img", { name: /最近 26 周共打卡 1 天/ })).toBeVisible();
+  await expect(home.getByRole("button", { name: "去练 W1-EX5 1&2指全指板爬格子" })).toContainText("✓ 12:00 / 10:00");
+
+  await home.getByRole("button", { name: "去练 W1-EX6 1&3指全指板爬格子" }).click();
+  await expect(page.getByRole("region", { name: "当前练习" }).getByRole("heading", { name: "1&3指全指板爬格子" })).toBeVisible();
+  await page.getByRole("tab", { name: "主页" }).click();
+  await home.getByRole("button", { name: "开始练习 →" }).click();
+  await expect(page.getByRole("region", { name: "当前练习" })).toBeVisible();
+});
+
+test("a colour scheme is chosen from the header and kept for next time", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("/?view=main");
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "amber");
+  await page.getByText("配色", { exact: true }).click();
+  await expect(page.getByRole("radio")).toHaveCount(6);
+  await page.getByRole("radio", { name: "海蓝" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "ocean");
+  await expect(page.getByRole("radiogroup", { name: "主题配色" })).toBeHidden();
+  const accent = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--takt-from").trim());
+  expect(await accent()).toBe("#4aa8ff");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "ocean");
+  expect(await accent()).toBe("#4aa8ff");
+});
+
+test("this run starts again at each press of start while the day's total adds up", async ({ page }) => {
+  await open(page, td => { td.journal.practising = [{ book: "shuaishuai-7w-1", exercise: "W1-EX5" }]; });
+  await page.clock.pauseAt(new Date(NOW.getTime() + 60_000));
+  await page.getByRole("button", { name: "W1-EX5 1&2指全指板爬格子" }).click();
+  await play(page).click();
+  await page.clock.runFor(40_000);
+  await stop(page).click();
+  await expect(page.getByLabel("本次计时")).toHaveText("0:40");
+  await page.clock.runFor(5_000);
+  await play(page).click();
+  await page.clock.runFor(7_000);
+  await expect(page.getByLabel("本次计时")).toHaveText("0:07");
+  await expect(page.getByLabel("今日计时")).toHaveText("0:47 / 10:00");
 });

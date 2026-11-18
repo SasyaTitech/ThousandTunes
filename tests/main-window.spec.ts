@@ -31,7 +31,7 @@ test("main controls play and change the rhythm without saving a preset", async (
 });
 
 test("the transport stays in reach on every page and the space bar toggles it", async ({ page }) => {
-  for (const name of ["练习", "教材库", "跟拍练习", "统计", "节拍器与预设"]) {
+  for (const name of ["主页", "练习", "教材库", "跟拍练习", "节拍器与预设"]) {
     await page.getByRole("tab", { name, exact: true }).click();
     await expect(start(page)).toBeInViewport();
     await expect(page.getByLabel("速度 BPM")).toBeInViewport();
