@@ -8,6 +8,7 @@ pub mod desktop;
 pub mod diagnostics;
 #[cfg(not(windows))]
 pub mod fullscreen_x11;
+pub mod journal;
 pub mod monitor;
 pub mod practice;
 pub mod settings;
@@ -318,6 +319,7 @@ pub fn run() {
 
     builder
         .manage(shortcuts::Runtime::default())
+        .manage(journal::JournalStore::load())
         .plugin(shortcuts::plugin())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
@@ -346,7 +348,16 @@ pub fn run() {
             coach::get_input_devices,
             coach::coach_start,
             coach::coach_set_review_length,
-            coach::coach_stop
+            coach::coach_stop,
+            journal::get_journal,
+            journal::save_journal_entry,
+            journal::add_journal_time,
+            journal::set_journal_result,
+            journal::set_journal_passed,
+            journal::set_journal_practising,
+            journal::delete_journal_entry,
+            journal::set_journal_checkin,
+            journal::set_journal_book
         ])
         .setup(|app| {
             let handle = app.handle().clone();

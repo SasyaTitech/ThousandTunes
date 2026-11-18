@@ -1,0 +1,87 @@
+{
+  "id": "shuaishuai-7w-1",
+  "title": "零基础入门电吉他7周自学计划 1",
+  "author": "帅帅是把电吉他",
+  "weeks": [
+    { "title": "第一周", "exercises": [
+      {"id": "W1-EX1", "title": "右手空弦下拨", "page": 5, "minutes": 5, "tempo": {"from": 40, "to": 40}},
+      {"id": "W1-EX2", "title": "左手按弦练习", "page": 6, "minutes": 5, "tempo": {"from": 40, "to": 40}, "goal": "2 秒内说出空弦音名"},
+      {"id": "W1-EX3", "title": "1&2指纵向爬格子", "page": 7, "minutes": 5, "tempo": {"from": 40, "to": 40}},
+      {"id": "W1-EX4", "title": "1&3指纵向爬格子", "page": 8, "minutes": 5, "tempo": {"from": 40, "to": 40}},
+      {"id": "W1-EX5", "title": "1&2指全指板爬格子", "page": 9, "minutes": 10, "tempo": {"from": 50, "to": 100}, "goal": "每天 3 组，每组连续 3 分钟"},
+      {"id": "W1-EX6", "title": "1&3指全指板爬格子", "page": 10, "minutes": 10, "tempo": {"from": 50, "to": 100}},
+      {"id": "W1-EX7", "title": "第五把位C调音阶", "page": 11, "minutes": 10, "tempo": {"from": 40, "to": 80}},
+      {"id": "W1-EX8", "title": "全&二分&四分音符节奏转换", "page": 12, "minutes": 10, "tempo": {"from": 60, "to": 60}},
+      {"id": "W1-EX9", "title": "C调简谱视奏", "page": 13, "minutes": 30, "tempo": {"from": 50, "to": 100}, "unit": "percent"}
+    ] },
+    { "title": "第二周", "exercises": [
+      {"id": "W2-EX1", "title": "单弦交替拨弦", "page": 16, "minutes": 5, "tempo": {"from": 60, "to": 120}, "goal": "每天从 60 起，每分钟 +10"},
+      {"id": "W2-EX2", "title": "多弦交替拨弦", "page": 17, "minutes": 5, "tempo": {"from": 60, "to": 120}, "goal": "每天从 60 起，每分钟 +10"},
+      {"id": "W2-EX3", "title": "2&3指全指板爬格子", "page": 18, "minutes": 10, "tempo": {"from": 60, "to": 100}, "goal": "连续 3 分钟手不酸再 +10"},
+      {"id": "W2-EX4", "title": "4&1指双弦爬格子", "page": 19, "minutes": 10, "tempo": {"from": 60, "to": 120}, "goal": "四分音符"},
+      {"id": "W2-EX5", "title": "第二把位C调音阶", "page": 20, "minutes": 10, "tempo": {"from": 40, "to": 80}, "goal": "八分音符"},
+      {"id": "W2-EX6", "title": "大&小二度模唱", "page": 21, "minutes": 10, "tempo": {"from": 40, "to": 40}},
+      {"id": "W2-EX7", "title": "二&四&八分音符节奏转换", "page": 22, "minutes": 10, "tempo": {"from": 40, "to": 40}},
+      {"id": "W2-EX8", "title": "第二把位简谱视奏", "page": 23, "minutes": 30, "tempo": {"from": 50, "to": 100}, "unit": "percent"},
+      {"id": "W2-EX9", "title": "周杰伦-青花瓷", "page": 25, "minutes": 20, "tempo": {"from": 40, "to": 80}}
+    ] },
+    { "title": "第三周", "exercises": [
+      {"id": "W3-EX1", "title": "单弦含16分音符的交替拨弦", "page": 27, "minutes": 5, "tempo": {"from": 40, "to": 80}, "goal": "每天从 40 起，每分钟 +10"},
+      {"id": "W3-EX2", "title": "滑弦技巧练习", "page": 28, "minutes": 10, "tempo": {"from": 50, "to": 100}},
+      {"id": "W3-EX3", "title": "4&1指全指板爬格子", "page": 29, "minutes": 10, "tempo": {"from": 50, "to": 100}, "goal": "连续 3 分钟不停"},
+      {"id": "W3-EX4", "title": "双弦保留指爬格子", "page": 30, "minutes": 10, "tempo": {"from": 40, "to": 80}},
+      {"id": "W3-EX5", "title": "第一把位音阶及闷音练习", "page": 31, "minutes": 10, "tempo": {"from": 50, "to": 100}},
+      {"id": "W3-EX6", "title": "三度模唱练习", "page": 32, "minutes": 10, "tempo": {"from": 40, "to": 40}},
+      {"id": "W3-EX7", "title": "音阶串连及反拍练习", "page": 33, "minutes": 10, "tempo": {"from": 40, "to": 80}},
+      {"id": "W3-EX8", "title": "1&2把位简谱视奏", "page": 34, "minutes": 20, "tempo": {"from": 50, "to": 100}, "goal": "前两首 50→100，后三首 40→80"},
+      {"id": "W3-EX9", "title": "许巍-蓝莲花Solo", "page": 36, "minutes": 10, "tempo": {"from": 40, "to": 80}}
+    ] },
+    { "title": "第四周", "exercises": [
+      {"id": "W4-EX1", "title": "单弦含三连音的交替拨弦", "page": 38, "minutes": 5, "tempo": {"from": 50, "to": 80}, "goal": "每天从 50 起，每分钟 +10"},
+      {"id": "W4-EX2", "title": "击弦技巧练习", "page": 39, "minutes": 10, "tempo": {"from": 60, "to": 100}},
+      {"id": "W4-EX3", "title": "纵向保留指爬格子", "page": 40, "minutes": 10, "tempo": {"from": 50, "to": 100}, "goal": "四分音符"},
+      {"id": "W4-EX4", "title": "4&3指原地交替练习", "page": 41, "minutes": 10, "tempo": {"from": 50, "to": 80}},
+      {"id": "W4-EX5", "title": "第四把位部分音阶及制音拨弦", "page": 42, "minutes": 10, "tempo": {"from": 40, "to": 60}},
+      {"id": "W4-EX6", "title": "相对于do的音程模唱", "page": 43, "minutes": 5, "tempo": {"from": 40, "to": 40}},
+      {"id": "W4-EX7", "title": "八分音符含休止和延音的节奏视奏", "page": 44, "minutes": 10, "tempo": {"from": 40, "to": 60}},
+      {"id": "W4-EX8", "title": "非C调简谱视奏", "page": 47, "minutes": 30, "tempo": {"from": 40, "to": null}, "goal": "从 40 练到原速"},
+      {"id": "W4-EX9", "title": "火影忍者-剪影solo", "page": 49, "minutes": 30, "tempo": {"from": 40, "to": 100}}
+    ] },
+    { "title": "第五周", "exercises": [
+      {"id": "W5-EX1", "title": "单弦含重音的节奏转换拨弦", "page": 51, "minutes": 5, "tempo": {"from": 50, "to": 80}, "goal": "每天从 50 起，每分钟 +10"},
+      {"id": "W5-EX2", "title": "勾弦技巧练习", "page": 52, "minutes": 10, "tempo": {"from": 60, "to": 100}},
+      {"id": "W5-EX3", "title": "单弦横向爬格子", "page": 53, "minutes": 10, "tempo": {"from": 60, "to": 120}, "goal": "八分音符"},
+      {"id": "W5-EX4", "title": "纵向1434保留指爬格子", "page": 54, "minutes": 10, "tempo": {"from": 60, "to": 120}, "goal": "四分音符"},
+      {"id": "W5-EX5", "title": "十六分音符少1个音的节奏视奏", "page": 55, "minutes": 10, "tempo": {"from": 40, "to": 50}},
+      {"id": "W5-EX6", "title": "AIR-鸟之诗", "page": 57, "minutes": 20, "tempo": {"from": 40, "to": 80}},
+      {"id": "W5-EX7", "title": "扫弦技巧练习", "page": 58, "minutes": 10, "tempo": {"from": 40, "to": 60}},
+      {"id": "W5-EX8", "title": "根音在5&6弦上的五和弦", "page": 59, "minutes": 10, "tempo": {"from": 60, "to": 90}},
+      {"id": "W5-EX9", "title": "5&6弦指板音横向记忆练习", "page": 60, "minutes": 10, "goal": "5 秒内反应出音的位置"},
+      {"id": "W5-EX10", "title": "周杰伦-爱的飞行日记", "page": 61, "minutes": 20, "tempo": {"from": 60, "to": 90}}
+    ] },
+    { "title": "第六周", "exercises": [
+      {"id": "W6-EX1", "title": "先上拨的单弦节奏转换拨弦", "page": 63, "minutes": 5, "tempo": {"from": 50, "to": 80}, "goal": "每天从 50 起，每分钟 +10"},
+      {"id": "W6-EX2", "title": "揉弦技巧练习", "page": 64, "minutes": 10, "tempo": {"from": 50, "to": 100}},
+      {"id": "W6-EX3", "title": "单弦手指协调性练习", "page": 65, "minutes": 10, "tempo": {"from": 40, "to": 60}},
+      {"id": "W6-EX4", "title": "单指连续击勾弦练习", "page": 66, "minutes": 10, "tempo": {"from": 50, "to": 100}},
+      {"id": "W6-EX5", "title": "16分音符少2个音的节奏视奏", "page": 67, "minutes": 10, "tempo": {"from": 40, "to": 50}},
+      {"id": "W6-EX6", "title": "Beyond-光辉岁月solo", "page": 69, "minutes": 20, "tempo": {"from": 40, "to": 60}},
+      {"id": "W6-EX7", "title": "根音在三弦的C调原位三和弦", "page": 70, "minutes": 10, "tempo": {"from": 40, "to": 40}},
+      {"id": "W6-EX8", "title": "1&2&3弦指板音横向记忆练习", "page": 71, "minutes": 10, "goal": "5 秒内反应出音的位置"},
+      {"id": "W6-EX9", "title": "制音移位扫弦", "page": 72, "minutes": 10, "tempo": {"from": 40, "to": 60}},
+      {"id": "W6-EX10", "title": "轻音少女-Don't say lazy", "page": 73, "minutes": 20, "tempo": {"from": 50, "to": 90}}
+    ] },
+    { "title": "第七周", "exercises": [
+      {"id": "W7-EX1", "title": "单弦含六连音的节奏转换拨弦", "page": 75, "minutes": 5, "tempo": {"from": 40, "to": 60}, "goal": "每天从 40 起，每分钟 +5"},
+      {"id": "W7-EX2", "title": "推弦技巧练习", "page": 76, "minutes": 10, "tempo": {"from": 40, "to": 60}},
+      {"id": "W7-EX3", "title": "多弦手指协调性练习", "page": 77, "minutes": 10, "tempo": {"from": 40, "to": 60}},
+      {"id": "W7-EX4", "title": "双指连续击勾弦练习", "page": 78, "minutes": 10, "tempo": {"from": 40, "to": 60}},
+      {"id": "W7-EX5", "title": "夜鹿-花上亡灵solo", "page": 79, "minutes": 20, "tempo": {"from": 50, "to": 100}},
+      {"id": "W7-EX6", "title": "布鲁斯shuffle节奏扫弦", "page": 80, "minutes": 10, "tempo": {"from": 40, "to": 60}},
+      {"id": "W7-EX7", "title": "ZZ Top-Tush", "page": 81, "minutes": 20, "tempo": {"from": 40, "to": 60}},
+      {"id": "W7-EX8", "title": "1&2&3弦指板音强化记忆练习", "page": 82, "minutes": 10, "goal": "10 秒内找全三根弦上的位置"},
+      {"id": "W7-EX9", "title": "三个音的转位大&小三和弦", "page": 83, "minutes": 10, "tempo": {"from": 50, "to": 50}},
+      {"id": "W7-EX10", "title": "五月天-温柔", "page": 84, "minutes": 20, "tempo": {"from": 40, "to": 60}}
+    ] }
+  ]
+}

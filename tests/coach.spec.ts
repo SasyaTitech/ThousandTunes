@@ -3,7 +3,7 @@ import { installTauriMock, calls } from "./harness";
 
 test.beforeEach(async ({ page }) => {
   await installTauriMock(page);
-  await page.setViewportSize({ width: 1000, height: 900 });
+  await page.setViewportSize({ width: 1120, height: 900 });
   await page.goto("/?view=main");
   await page.getByRole("tab", { name: "跟拍练习", exact: true }).click();
 });

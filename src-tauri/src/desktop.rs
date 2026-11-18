@@ -22,7 +22,7 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
         tauri::WebviewUrl::App("index.html?view=main".into()),
     )
     .title("TaktDock — Practice")
-    .inner_size(1000.0, 720.0)
+    .inner_size(1120.0, 780.0)
     .min_inner_size(640.0, 540.0)
     .decorations(true)
     .resizable(true)

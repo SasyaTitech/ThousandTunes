@@ -138,18 +138,28 @@ pub fn soft_limit(v: f32) -> f32 {
     }
 }
 
+/// The top of the slider, in decibels over the level the sounds are designed
+/// at. A click is a few milliseconds long, so at its designed peak it is much
+/// quieter than music at the same peak; the top quarter of the range pushes it
+/// into the limiter instead, trading a harder edge for loudness that carries
+/// over an amplifier.
+const TOP_DB: f32 = 12.0;
+
+/// Decibels from the bottom of the slider to the top.
+const RANGE_DB: f32 = 52.0;
+
 /// Linear gain for a 0 to 100 volume.
 ///
 /// Loudness is heard logarithmically, so a linear slider puts all of the useful
-/// range in its bottom fifth. Forty decibels over the top of the range is what
-/// a practice click needs: 100 is full scale, 50 is -25 dB, and 0 is silence
+/// range in its bottom fifth. Here every step is the same 0.52 dB: 100 is
+/// +12 dB, 77 is about the designed level, 50 is -14 dB, and 0 is silence
 /// rather than a very quiet click.
 pub fn gain(volume: u8) -> f32 {
     if volume == 0 {
         return 0.0;
     }
     let v = volume.min(100) as f32;
-    10f32.powf((v - 100.0) / 40.0)
+    10f32.powf((TOP_DB - (100.0 - v) * RANGE_DB / 100.0) / 20.0)
 }
 
 /// Attack then exponential decay. `decay_ms` is the time the tail takes to
@@ -344,10 +354,12 @@ mod tests {
     #[test]
     fn the_volume_curve_is_logarithmic() {
         assert_eq!(gain(0), 0.0);
-        assert!((gain(100) - 1.0).abs() < 1e-6);
-        // 50 is -25 dB.
+        // The top is +12 dB, for a click that carries over an amplifier.
+        assert!((20.0 * gain(100).log10() - 12.0).abs() < 0.01);
+        // 50 is -14 dB, and the designed level sits near 77.
         let db = 20.0 * gain(50).log10();
-        assert!((db + 25.0).abs() < 0.01, "{db}");
+        assert!((db + 14.0).abs() < 0.01, "{db}");
+        assert!((20.0 * gain(77).log10()).abs() < 0.3);
         // Every step is audible and in the same direction.
         for v in 1..100u8 {
             assert!(gain(v + 1) > gain(v));

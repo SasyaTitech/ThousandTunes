@@ -44,6 +44,7 @@ export async function installTauriMock(page: Page) {
       calls: [] as Array<{ cmd: string; args: unknown }>,
       practice: { presets: [] as any[], selected_id: null, shortcuts_enabled: false, shortcut_extra_shift: false, shortcuts_active: false, shortcut_error: null },
       failCommand: null,
+      journal: { version: 2, active_book: "", practising: [] as any[], entries: [] as any[], checkins: [] as string[] },
       coach: {
         config: { input_id: "", channel: 0, notes_per_beat: 1, gate_db: -45, length: 32, review_length: 32 },
         status: { active: false, mode: "idle", message: "选择吉他输入，先检查拨弦能否被识别。", level_db: -90, clipped: false, attacks: 0, clock_ms: 10000, start_ms: null, interval_ms: 500, length: 32, calibrated: false, offset_ms: 0, calibration_jitter_ms: 0, results: [], recent_extras: [], summary: { played: 0, on_time: 0, missed: 0, extra: 0, uncertain: 0, mean_ms: 0, spread_ms: 0 } },
@@ -121,6 +122,48 @@ export async function installTauriMock(page: Page) {
             td.practice.shortcut_extra_shift = args.extraShift;
             td.practice.shortcuts_active = args.enabled;
             return Promise.resolve(structuredClone(td.practice));
+          case "get_journal": return Promise.resolve(structuredClone(td.journal));
+          case "save_journal_entry": {
+            const same = (e: any) => e.book === args.entry.book && e.exercise === args.entry.exercise && e.date === args.entry.date;
+            td.journal.entries = [...td.journal.entries.filter((e: any) => !same(e)), { ...args.entry }];
+            return Promise.resolve(structuredClone(td.journal));
+          }
+          case "add_journal_time":
+          case "set_journal_result":
+          case "set_journal_passed": {
+            const same = (e: any) => e.book === args.book && e.exercise === args.exercise && e.date === args.date;
+            let entry = td.journal.entries.find(same);
+            const blank = () => { entry = { book: args.book, exercise: args.exercise, date: args.date, seconds: 0, speed: null, passed: false, note: "" }; td.journal.entries.push(entry); };
+            if (cmd === "add_journal_time") {
+              if (!entry) blank();
+              entry.seconds += args.seconds;
+              if (args.speed !== null) entry.speed = Math.max(entry.speed ?? 0, args.speed);
+            } else if (cmd === "set_journal_result") {
+              if (!entry) blank();
+              entry.speed = args.speed; entry.note = args.note;
+            } else if (args.passed) {
+              if (!entry) blank();
+              entry.passed = true;
+              td.journal.practising = td.journal.practising.filter((i: any) => !(i.book === args.book && i.exercise === args.exercise));
+            } else {
+              for (const e of td.journal.entries) if (e.book === args.book && e.exercise === args.exercise) e.passed = false;
+            }
+            return Promise.resolve(structuredClone(td.journal));
+          }
+          case "set_journal_practising":
+            td.journal.practising = td.journal.practising.filter((i: any) => !(i.book === args.book && args.exercises.includes(i.exercise)));
+            if (args.on) td.journal.practising.push(...args.exercises.map((exercise: string) => ({ book: args.book, exercise })));
+            return Promise.resolve(structuredClone(td.journal));
+          case "delete_journal_entry":
+            td.journal.entries = td.journal.entries.filter((e: any) => !(e.book === args.book && e.exercise === args.exercise && e.date === args.date));
+            return Promise.resolve(structuredClone(td.journal));
+          case "set_journal_checkin":
+            td.journal.checkins = td.journal.checkins.filter((d: string) => d !== args.date);
+            if (args.on) td.journal.checkins.push(args.date);
+            return Promise.resolve(structuredClone(td.journal));
+          case "set_journal_book":
+            td.journal.active_book = args.book;
+            return Promise.resolve(structuredClone(td.journal));
           case "plugin:event|listen":
             (listeners[args.event] ??= []).push(args.handler);
             return Promise.resolve(args.handler);
