@@ -123,11 +123,11 @@ function Detail({ journal, book, exercise, today, listed, mutate, toggle, practi
 
     <form className="jr-form" onSubmit={e => void save(e)} aria-label="练习记录">
       <div className="jr-form-head">
-        <h3>{date === today ? "今日记录" : `${shortDate(date)}的记录`}<small>{existing ? "已有记录，可修改" : "计时会自动记录，这里用来补记和更正"}</small></h3>
+        <h3>{date === today ? "今日记录" : `${shortDate(date)}的记录`}<small>{existing ? "已有记录，可修改" : "时间由计时自动记录，这里用来补记和更正"}</small></h3>
         <label>记录日期<input type="date" aria-label="记录日期" value={date} max={today} required onChange={e => { if (e.target.value) setDate(e.target.value); }} /></label>
       </div>
       <div className="jr-fields">
-        <label>最高速度（{unit}）<input className="num" aria-label="速度" inputMode="numeric" placeholder="—" value={draft.speed} onChange={e => setDraft({ ...draft, speed: e.target.value })} /></label>
+        <label>当天成绩（{unit}）<input className="num" aria-label="速度" inputMode="numeric" placeholder="—" value={draft.speed} onChange={e => setDraft({ ...draft, speed: e.target.value })} /></label>
         <label>练习时长（分钟）<input className="num" aria-label="练习时长" inputMode="numeric" placeholder="—" value={draft.minutes} onChange={e => setDraft({ ...draft, minutes: e.target.value })} /></label>
         <label className="jr-note-field">备注<input aria-label="备注" maxLength={300} placeholder="今天的感觉、卡住的地方…" value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} /></label>
       </div>

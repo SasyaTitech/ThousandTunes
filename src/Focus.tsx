@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { Transport } from "@/lib/types";
-import { FREE, formatClock, progressOf, sameItem, targetOf, tempoText, unitLabel, type Book, type Exercise, type Item, type Journal } from "@/lib/journal";
+import { FREE, formatClock, progressOf, sameItem, targetOf, tempoText, unitLabel, type Book, type Entry, type Exercise, type Item, type Journal } from "@/lib/journal";
 
 export type Mutate = (cmd: string, args: Record<string, unknown>) => Promise<boolean>;
 
@@ -70,7 +70,9 @@ export default function Focus({ journal, book, today, current, pending, session,
 
       {metronome}
 
-      <Timers exercise={exercise} seconds={live(item)} session={session} speed={journal.entries.find(e => sameItem(e, item) && e.date === today)?.speed ?? null} running={transport?.running ?? false} />
+      <Timers exercise={exercise} seconds={live(item)} session={session} running={transport?.running ?? false}>
+        {exercise && <Result exercise={exercise} entry={journal.entries.find(e => sameItem(e, item) && e.date === today) ?? null} item={item} today={today} bpm={transport?.bpm ?? null} mutate={mutate} flush={flush} />}
+      </Timers>
 
       {exercise && <div className="fx-actions">
         <button type="button" disabled={index <= 0} onClick={() => select({ book: book.id, exercise: listed[index - 1].id })}>← 上一条</button>
@@ -104,16 +106,30 @@ function ExerciseHead({ exercise, journal, book, transport, setBpm }: { exercise
   </header>;
 }
 
-function Timers({ exercise, seconds, session, speed, running }: { exercise: Exercise | null; seconds: number; session: number; speed: number | null; running: boolean }) {
+function Timers({ exercise, seconds, session, running, children }: { exercise: Exercise | null; seconds: number; session: number; running: boolean; children?: React.ReactNode }) {
   const goal = (exercise?.minutes ?? 0) * 60;
-  const timed = !!exercise?.tempo && exercise.unit !== "percent";
   return <div className="fx-timers" data-running={running}>
     <div><span>本次</span><b className="num" aria-label="本次计时">{formatClock(session)}</b></div>
     <div className="fx-today"><span>今日{goal > 0 && seconds >= goal ? " · 已练够" : ""}</span>
       <b className="num" aria-label="今日计时">{formatClock(seconds)}{goal ? <small> / {exercise!.minutes}:00</small> : null}</b>
       {goal > 0 && <i role="progressbar" data-done={seconds >= goal} aria-label="今日进度" aria-valuemin={0} aria-valuemax={goal} aria-valuenow={Math.min(goal, seconds)}><u style={{ width: `${Math.min(100, seconds / goal * 100)}%` }} /></i>}</div>
-    {exercise && <div><span>今日最高</span><b className="num" aria-label="今日最高速度">{speed ?? "—"}{speed !== null && <small> {unitLabel(exercise)}</small>}</b>
-      <small>{timed ? "同一速度弹满 30 秒自动记录" : "这条练习的速度请手动填写"}</small></div>}
+    {children}
+  </div>;
+}
+
+/**
+ * The speed the player judges they reached today. Never taken from the
+ * metronome on its own: a tempo that was fought with for ten minutes and then
+ * given up is not a result. One press records the tempo now set.
+ */
+function Result({ exercise, entry, item, today, bpm, mutate, flush }: { exercise: Exercise; entry: Entry | null; item: Item; today: string; bpm: number | null; mutate: Mutate; flush: () => Promise<void> }) {
+  const speed = entry?.speed ?? null;
+  const metronome = !!exercise.tempo && exercise.unit !== "percent" && bpm !== null;
+  const record = (value: number) => void flush().then(() => mutate("set_journal_result", { book: item.book, exercise: item.exercise, date: today, speed: value, note: entry?.note ?? "" }));
+  return <div className="fx-result"><span>今日成绩</span>
+    <b className="num" aria-label="今日成绩">{speed ?? "—"}{speed !== null && <small> {unitLabel(exercise)}</small>}</b>
+    {metronome ? <button type="button" disabled={speed === bpm} title="把节拍器现在的速度记为今天的成绩；之后可以再改" onClick={() => record(bpm!)}>{speed === bpm ? "已记下当前速度" : `记下当前速度 ${bpm}`}</button>
+      : <small>在下面的“今日记录与备注”里填写</small>}
   </div>;
 }
 
@@ -128,7 +144,7 @@ function TodayRecord({ journal, item, exercise, today, mutate, flush }: { journa
   const entry = journal.entries.find(e => sameItem(e, item) && e.date === today) ?? null;
   const [speed, setSpeed] = React.useState(""), [note, setNote] = React.useState(""), [message, setMessage] = React.useState("");
   const [editing, setEditing] = React.useState(false);
-  // The clock keeps raising the speed while the form is closed; an open form is the user's.
+  // The form follows the record while closed; once open, what is typed is the user's.
   React.useEffect(() => { if (!editing) { setSpeed(entry?.speed?.toString() ?? ""); setNote(entry?.note ?? ""); } }, [entry?.speed, entry?.note, editing]);
 
   async function save(e: React.FormEvent) {
@@ -141,7 +157,7 @@ function TodayRecord({ journal, item, exercise, today, mutate, flush }: { journa
   return <details className="fx-record" onToggle={e => { setEditing(e.currentTarget.open); setMessage(""); }}>
     <summary>今日记录与备注{entry?.note ? <small>{entry.note}</small> : null}</summary>
     <form onSubmit={e => void save(e)} aria-label="今日记录">
-      <label>今日最高速度（{unitLabel(exercise)}）<input className="num" aria-label="速度" inputMode="numeric" placeholder="—" value={speed} onChange={e => setSpeed(e.target.value)} /></label>
+      <label>今日成绩（{unitLabel(exercise)}）<input className="num" aria-label="速度" inputMode="numeric" placeholder="—" value={speed} onChange={e => setSpeed(e.target.value)} /></label>
       <label className="fx-note">备注<input aria-label="备注" maxLength={300} placeholder="今天的感觉、卡住的地方…" value={note} onChange={e => setNote(e.target.value)} /></label>
       <button type="submit" className="primary">保存</button>
       <p role="status">{message}</p>

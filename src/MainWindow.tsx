@@ -48,23 +48,19 @@ export default function MainWindow() {
   const currentRef = React.useRef(current);
   currentRef.current = current;
   const writes = React.useRef<Promise<void>>(Promise.resolve());
-  const tickClock = () => { const t = transportRef.current; clock.current.advance(performance.now(), !!t?.running, t?.bpm ?? 0); };
+  const tickClock = () => { clock.current.advance(performance.now(), !!transportRef.current?.running); };
   const flush = React.useCallback((item: Item | null = currentRef.current) => {
     writes.current = writes.current.then(async () => {
       tickClock();
-      const taken = clock.current.take();
-      if (taken.seconds === 0) return clock.current.restore(taken);
-      const target = item ?? FREE;
-      const exercise = BOOKS.find(b => b.id === target.book)?.weeks.flatMap(w => w.exercises).find(e => e.id === target.exercise);
-      // Only a BPM exercise takes its result from the metronome.
-      const speed = exercise?.tempo && exercise.unit !== "percent" ? taken.speed : null;
-      try { setJournal(await invoke<Journal>("add_journal_time", { ...target, date: dayOf(new Date()), seconds: taken.seconds, speed })); }
-      catch (e) { clock.current.restore(taken); setError(String(e)); }
+      const seconds = clock.current.take();
+      if (seconds === 0) return;
+      try { setJournal(await invoke<Journal>("add_journal_time", { ...(item ?? FREE), date: dayOf(new Date()), seconds, speed: null })); }
+      catch (e) { clock.current.restore(seconds); setError(String(e)); }
     });
     return writes.current;
   }, []);
   function select(item: Item | null) {
-    void flush(currentRef.current).then(() => { clock.current.startSession(performance.now()); setTick(n => n + 1); });
+    void flush(currentRef.current).then(() => { clock.current.startSession(); setTick(n => n + 1); });
     setCurrent(item);
     try { localStorage.setItem("td-current", JSON.stringify(item)); } catch { /* private mode */ }
   }

@@ -282,6 +282,8 @@ span.td-checked { padding: 6px 0; }
 .fx-timers b { font-size: 30px; line-height: 1.15; font-weight: 600; }
 .fx-timers b small { font-size: 13px; }
 .fx-timers[data-running="true"] > div:first-child b { color: var(--takt-to); }
+.fx-result button { justify-self: start; margin-top: 4px; padding: 3px 10px; font-size: 12px; color: var(--takt-to); background: transparent; border-color: #f2a33a55; }
+.fx-result button:disabled { color: var(--text-secondary); border-color: var(--border); opacity: 1; }
 .fx-today i { display: block; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--field); overflow: hidden; }
 .fx-today u { display: block; height: 100%; background: var(--takt-from); border-radius: 2px; }
 .fx-today i[aria-valuenow][data-done="true"] u { background: var(--ok); }

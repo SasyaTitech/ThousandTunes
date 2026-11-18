@@ -79,34 +79,29 @@ test("exercise progress follows the best speed towards the textbook target", () 
   expect([formatDuration(0), formatDuration(40), formatDuration(95), formatClock(5), formatClock(200), formatClock(3725)]).toEqual(["0 分钟", "不到 1 分钟", "2 分钟", "0:05", "3:20", "1:02:05"]);
 });
 
-test("the practice clock counts only while the metronome runs and records a tempo once it is held", () => {
+test("the practice clock counts only while the metronome runs", () => {
   const c = new PracticeClock();
-  c.advance(0, false, 80);
-  c.advance(5_000, false, 80);
+  c.advance(0, false);
+  c.advance(5_000, false);
   expect(c.pendingSeconds).toBe(0);
-  c.advance(5_000, true, 80);
-  for (let t = 6_000; t <= 25_000; t += 1_000) c.advance(t, true, 80);
+  c.advance(5_000, true);
+  for (let t = 6_000; t <= 25_500; t += 500) c.advance(t, true);
   expect([c.pendingSeconds, c.sessionSeconds]).toEqual([20, 20]);
-  // Twenty seconds at 80 is not yet a result.
-  expect(c.take()).toEqual({ seconds: 20, speed: null });
-  for (let t = 26_000; t <= 35_000; t += 1_000) c.advance(t, true, 80);
-  expect(c.take()).toEqual({ seconds: 10, speed: 80 });
-  // A faster tempo has to be held on its own; nudging through it does not count.
-  c.advance(36_000, true, 120);
-  c.advance(40_000, true, 100);
-  for (let t = 41_000; t <= 71_000; t += 1_000) c.advance(t, true, 100);
-  expect(c.take()).toEqual({ seconds: 36, speed: 100 });
+  expect(c.take()).toBe(20);
+  // The half second left over is not lost.
+  c.advance(26_000, true);
+  expect(c.take()).toBe(1);
   // Stopping ends the count, and a sleeping computer is not practice.
-  c.advance(72_000, false, 100);
-  c.advance(90_000, false, 100);
-  c.advance(90_000, true, 100);
-  c.advance(4_000_000, true, 100);
+  c.advance(27_000, false);
+  c.advance(90_000, false);
+  c.advance(90_000, true);
+  c.advance(4_000_000, true);
   expect(c.pendingSeconds).toBe(6);
   const taken = c.take();
   c.restore(taken);
-  expect(c.take()).toEqual(taken);
-  expect(c.sessionSeconds).toBe(72);
-  c.startSession(4_000_000);
+  expect(c.take()).toBe(taken);
+  expect(c.sessionSeconds).toBe(27);
+  c.startSession();
   expect(c.sessionSeconds).toBe(0);
 });
 

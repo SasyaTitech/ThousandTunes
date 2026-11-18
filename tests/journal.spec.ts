@@ -51,35 +51,42 @@ test("exercises are chosen from the book, and passing one takes it off the list"
   await expect(page.getByRole("button", { name: "标记达标" })).toBeVisible();
 });
 
-test("running the metronome times the selected exercise and records the tempo that was held", async ({ page }) => {
+test("running the metronome times the selected exercise, and the speed is only what the player records", async ({ page }) => {
   test.setTimeout(90_000); // a minute of metronome time is stepped through tick by tick
   await open(page, td => { td.journal.practising = ["W1-EX5", "W1-EX6"].map(exercise => ({ book: "shuaishuai-7w-1", exercise })); });
   // From here time moves only when the test moves it, so the counts are exact.
   await page.clock.pauseAt(new Date(NOW.getTime() + 60_000));
   await page.getByRole("button", { name: "W1-EX5 1&2指全指板爬格子" }).click();
-  await page.getByRole("button", { name: "起始 50" }).click();
-  await expect(page.getByLabel("速度 BPM")).toHaveValue("50");
+  await page.getByRole("button", { name: "目标 100" }).click();
+  await expect(page.getByLabel("速度 BPM")).toHaveValue("100");
   await page.clock.runFor(3_000);
   expect(await times(page)).toEqual([]); // nothing counts while the metronome is stopped
 
   await play(page).click();
-  await page.clock.runFor(25_000);
-  await expect(page.getByLabel("本次计时")).toHaveText("0:25");
-  await expect(page.getByLabel("今日计时")).toHaveText("0:25 / 10:00");
-  await expect(page.getByLabel("今日最高速度")).toHaveText("—");
-  await page.clock.runFor(10_000);
-  await expect(page.getByLabel("今日最高速度")).toHaveText("50 BPM");
-
-  // A faster tempo counts only once it has been held for thirty seconds.
-  await page.getByRole("button", { name: "加 5" }).click();
-  await page.clock.runFor(12_000);
+  await page.clock.runFor(40_000);
+  await expect(page.getByLabel("本次计时")).toHaveText("0:40");
+  await expect(page.getByLabel("今日计时")).toHaveText("0:40 / 10:00");
+  // Forty seconds of struggling at 100 is not a result until the player says so.
+  await expect(page.getByLabel("今日成绩")).toHaveText("—");
+  await page.getByRole("button", { name: "减 5" }).click();
+  await page.getByRole("button", { name: "减 5" }).click();
+  await page.clock.runFor(7_000);
   await stop(page).click();
   await expect(page.getByLabel("今日计时")).toHaveText("0:47 / 10:00");
-  await expect(page.getByLabel("今日最高速度")).toHaveText("50 BPM");
+  await expect(page.getByLabel("今日成绩")).toHaveText("—");
   const written = await times(page);
-  expect(written.every(a => a.book === BOOK && a.exercise === "W1-EX5" && a.date === "2026-11-18")).toBe(true);
+  expect(written.every(a => a.book === BOOK && a.exercise === "W1-EX5" && a.date === "2026-11-18" && a.speed === null)).toBe(true);
   expect(written.reduce((n, a) => n + a.seconds, 0)).toBe(47);
-  expect([...new Set(written.map(a => a.speed))].filter(Boolean)).toEqual([50]); // 55 was held for only 12 seconds
+
+  await page.getByRole("button", { name: "记下当前速度 90" }).click();
+  expect((await calls(page, "set_journal_result")).at(-1)?.args).toEqual({ ...item("W1-EX5"), date: "2026-11-18", speed: 90, note: "" });
+  await expect(page.getByLabel("今日成绩")).toHaveText("90 BPM");
+  await expect(page.getByRole("button", { name: "已记下当前速度" })).toBeDisabled();
+  // Recording again replaces the result, down as well as up.
+  await page.getByRole("button", { name: "减 5" }).click();
+  await page.getByRole("button", { name: "记下当前速度 85" }).click();
+  await expect(page.getByLabel("今日成绩")).toHaveText("85 BPM");
+  await expect(page.getByLabel("今日计时")).toHaveText("0:47 / 10:00");
 
   // Switching exercise starts a new session; the first one keeps its time.
   await page.getByRole("button", { name: "下一条 →" }).click();
@@ -114,7 +121,7 @@ test("a day's speed and note can be corrected without touching the counted time"
   await page.getByLabel("备注").fill("节拍器忘了调回来");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   expect((await calls(page, "set_journal_result"))[0].args).toEqual({ ...item("W1-EX5"), date: "2026-11-18", speed: 80, note: "节拍器忘了调回来" });
-  await expect(page.getByLabel("今日最高速度")).toHaveText("80 BPM");
+  await expect(page.getByLabel("今日成绩")).toHaveText("80 BPM");
   await expect(page.getByLabel("今日计时")).toHaveText("10:10 / 10:00");
 });
 

@@ -145,50 +145,40 @@ export function formatClock(seconds: number): string {
   return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
 }
 
-/** A tempo counts as the day's result once it has been held this long. */
-export const HOLD_MS = 30_000;
 /** A longer gap between ticks means the computer slept, not that anyone played. */
 const MAX_STEP_MS = 5_000;
 
 /**
  * Turns "the metronome is running" into practice time. Fed the current time
- * and transport on every tick and change; hands back whole seconds, and the
- * fastest tempo that was held long enough, whenever asked.
+ * and whether the metronome runs, on every tick and change; hands back whole
+ * seconds whenever asked. The speed reached is the player's to judge, so it
+ * is entered by hand and never read off the metronome.
  */
 export class PracticeClock {
   private last: number | null = null;
   private running = false;
-  private bpm = 0;
-  private bpmSince = 0;
   private pendingMs = 0;
   private sessionMs = 0;
-  private held: number | null = null;
 
-  advance(now: number, running: boolean, bpm: number) {
+  advance(now: number, running: boolean) {
     if (this.running && this.last !== null) {
       const step = Math.min(MAX_STEP_MS, Math.max(0, now - this.last));
       this.pendingMs += step;
       this.sessionMs += step;
-      if (now - this.bpmSince >= HOLD_MS) this.held = Math.max(this.held ?? 0, this.bpm);
     }
-    if (running && (!this.running || bpm !== this.bpm)) { this.bpm = bpm; this.bpmSince = now; }
     this.running = running;
     this.last = now;
   }
   get pendingSeconds() { return Math.floor(this.pendingMs / 1000); }
   get sessionSeconds() { return Math.floor(this.sessionMs / 1000); }
-  /** Whole seconds not yet handed over, and the best held tempo since the last call. */
-  take(): { seconds: number; speed: number | null } {
-    const seconds = this.pendingSeconds, speed = this.held;
+  /** Whole seconds not yet handed over. */
+  take(): number {
+    const seconds = this.pendingSeconds;
     this.pendingMs -= seconds * 1000;
-    this.held = null;
-    return { seconds, speed };
+    return seconds;
   }
   /** Put back what could not be saved. */
-  restore(taken: { seconds: number; speed: number | null }) {
-    this.pendingMs += taken.seconds * 1000;
-    if (taken.speed !== null) this.held = Math.max(this.held ?? 0, taken.speed);
-  }
-  /** A new exercise starts its own session; the tempo hold starts over too. */
-  startSession(now: number) { this.sessionMs = 0; this.bpmSince = now; this.held = null; }
+  restore(seconds: number) { this.pendingMs += seconds * 1000; }
+  /** A new exercise starts its own session. */
+  startSession() { this.sessionMs = 0; }
 }
