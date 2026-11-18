@@ -103,7 +103,7 @@ export default function RhythmCoach({ transport }: { transport: Transport | null
         : <button className="rc-primary" disabled={!ready} onClick={() => void start("practice")}>{review ? continuous ? "再次开始" : "再练一轮" : "开始跟拍"}</button>}
       <button disabled={!ready} onClick={() => void start("monitor")}>检查输入</button>
       <button disabled={busy || status.active} onClick={() => setCalibration(v => !v)}>延迟校准</button>
-      <span className="rc-muted">速度和拍号用上面的节拍器调</span>
+      <span className="rc-muted">速度和拍号用底部的节拍器调</span>
     </div>
 
     {calibration && <div className="rc-calibration">

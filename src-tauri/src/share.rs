@@ -10,7 +10,7 @@ const PNG_MAGIC: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
 fn share_dir() -> Result<PathBuf, String> {
     dirs::picture_dir()
         .or_else(dirs::home_dir)
-        .map(|dir| dir.join("TaktDock"))
+        .map(|dir| dir.join("千曲"))
         .ok_or_else(|| "找不到“图片”文件夹。".to_string())
 }
 
@@ -28,7 +28,7 @@ fn file_name(date: &str, shape: &str) -> Option<String> {
         "square" => " 方形",
         _ => return None,
     };
-    dated.then(|| format!("TaktDock 练习 {date}{suffix}.png"))
+    dated.then(|| format!("千曲 {date}{suffix}.png"))
 }
 
 fn write(dir: &Path, date: &str, shape: &str, data: &[u8]) -> Result<PathBuf, String> {
@@ -49,7 +49,7 @@ fn write(dir: &Path, date: &str, shape: &str, data: &[u8]) -> Result<PathBuf, St
     Ok(path)
 }
 
-/// Saves today's card into Pictures\TaktDock and answers with where it went.
+/// Saves today's card into Pictures\千曲 and answers with where it went.
 /// The same day and shape overwrite each other, so sharing twice leaves one file.
 #[tauri::command]
 pub fn save_share_image(date: String, shape: String, data: Vec<u8>) -> Result<String, String> {
@@ -86,8 +86,8 @@ mod tests {
 
     #[test]
     fn the_file_is_named_from_a_checked_date_and_shape() {
-        assert_eq!(file_name("2026-11-19", "portrait").as_deref(), Some("TaktDock 练习 2026-11-19.png"));
-        assert_eq!(file_name("2026-11-19", "square").as_deref(), Some("TaktDock 练习 2026-11-19 方形.png"));
+        assert_eq!(file_name("2026-11-19", "portrait").as_deref(), Some("千曲 2026-11-19.png"));
+        assert_eq!(file_name("2026-11-19", "square").as_deref(), Some("千曲 2026-11-19 方形.png"));
         for date in ["", "2026-11-1", "2026/11/19", "..\\..\\x.png", "2026-11-19x", "２０２６-11-19"] {
             assert_eq!(file_name(date, "portrait"), None, "{date}");
         }

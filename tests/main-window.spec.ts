@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
   await installTauriMock(page);
   await page.setViewportSize({ width: 1120, height: 780 });
   await page.goto("/?view=main");
-  await page.getByRole("tab", { name: "节拍器与预设" }).click();
+  await page.getByRole("tab", { name: "节拍器" }).click();
   await expect(page.getByLabel("速度 BPM")).toBeEnabled();
 });
 
@@ -31,7 +31,7 @@ test("main controls play and change the rhythm without saving a preset", async (
 });
 
 test("the transport stays in reach on every page and the space bar toggles it", async ({ page }) => {
-  for (const name of ["主页", "练习", "教材库", "跟拍练习", "节拍器与预设"]) {
+  for (const name of ["主页", "练习", "教材", "跟拍", "节拍器"]) {
     await page.getByRole("tab", { name, exact: true }).click();
     await expect(start(page)).toBeInViewport();
     await expect(page.getByLabel("速度 BPM")).toBeInViewport();

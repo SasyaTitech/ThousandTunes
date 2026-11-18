@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
   await installTauriMock(page);
   await page.setViewportSize({ width: 1120, height: 900 });
   await page.goto("/?view=main");
-  await page.getByRole("tab", { name: "跟拍练习", exact: true }).click();
+  await page.getByRole("tab", { name: "跟拍", exact: true }).click();
 });
 
 test("input must be explicitly chosen and the requested mono channel and grid reach the backend", async ({ page }) => {
@@ -26,8 +26,8 @@ test("input check does not start the metronome and remains controllable after ch
   await page.getByRole("button", { name: "检查输入", exact: true }).click();
   expect((await calls(page, "coach_start"))[0].args.mode).toBe("monitor");
   expect(await calls(page, "toggle_play")).toHaveLength(0);
-  await page.getByRole("tab", { name: "节拍器与预设" }).click();
-  await page.getByRole("tab", { name: "跟拍练习", exact: true }).click();
+  await page.getByRole("tab", { name: "节拍器" }).click();
+  await page.getByRole("tab", { name: "跟拍", exact: true }).click();
   await expect(page.getByRole("button", { name: "结束检查" })).toBeVisible();
   await page.getByRole("button", { name: "结束检查" }).click();
   await expect(page.getByRole("status")).toContainText("输入已释放");

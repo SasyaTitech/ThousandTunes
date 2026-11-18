@@ -10,6 +10,8 @@ import { BOOKS } from "@/books";
 import { dayOf, EMPTY_JOURNAL, FREE, PracticeClock, secondsByDay, streaks, type Item, type Journal } from "@/lib/journal";
 import { TapTempo } from "@/lib/tap";
 import type { BeatEvent, Transport } from "@/lib/types";
+import practiceConf from "../src-tauri/tauri.practice.conf.json";
+import { cnDate, VERSE, VERSE_LINES, VERSE_SOURCE, weekdayName } from "@/lib/verse";
 
 type Controls = Partial<Pick<Transport, "bpm" | "subdivision" | "accent_first" | "sound" | "volume">> & {
   meter?: number[];
@@ -17,13 +19,14 @@ type Controls = Partial<Pick<Transport, "bpm" | "subdivision" | "accent_first" |
 };
 const METERS = ["1/4", "2/4", "3/4", "4/4", "5/4", "6/8", "7/8"];
 // The window opens on the home page: the record first, the controls a click away.
-const PAGES = [["home", "主页"], ["practice", "练习"], ["library", "教材库"], ["coach", "跟拍练习"], ["metronome", "节拍器与预设"]] as const;
+// The names are short because they are written down the spine.
+const PAGES = [["home", "主页"], ["practice", "练习"], ["library", "教材"], ["coach", "跟拍"], ["metronome", "节拍器"]] as const;
 type Page = typeof PAGES[number][0];
 /** Palettes for the window; the CSS holds the tokens, this the names and a swatch. */
-const SKINS = [["amber", "琥珀", "#f2a33a"], ["ocean", "海蓝", "#4aa8ff"], ["forest", "森林", "#7cc65a"], ["rose", "玫瑰", "#f0668f"], ["violet", "紫罗兰", "#9b84ff"], ["paper", "浅色纸张", "#f3f0e9"]] as const;
+const SKINS = [["qianli", "千里江山", "#1f9bb0"], ["yanzhi", "胭脂", "#c0354a"], ["xuanqing", "玄青", "#f0b429"], ["gongqiang", "宫墙", "#8c1c22"], ["qinghua", "青花", "#1f4fa0"], ["qingci", "青瓷", "#a9c8c0"], ["mo", "玄朱", "#d9432f"], ["jin", "墨金", "#c9a04a"], ["dai", "黛青", "#5fa8c4"], ["song", "松烟", "#7fae8b"], ["xuan", "素宣", "#f1ece0"], ["yue", "月白", "#e8edef"]] as const;
 type Skin = typeof SKINS[number][0];
 function storedSkin(): Skin {
-  try { const v = localStorage.getItem("td-skin"); return SKINS.find(s => s[0] === v)?.[0] ?? "amber"; } catch { return "amber"; }
+  try { const v = localStorage.getItem("td-skin"); return SKINS.find(s => s[0] === v)?.[0] ?? "qianli"; } catch { return "qianli"; }
 }
 /** Played time is written this often, so closing the window loses little. */
 const FLUSH_SECONDS = 10;
@@ -169,9 +172,20 @@ export default function MainWindow() {
     }} />;
 
   return <div className="td-app">
-    <header className="td-top">
-      <div className="td-brand">TAKTDOCK<small>练习台</small></div>
-      <nav className="td-mode-nav" role="tablist" aria-label="页面">
+    {/* A calling card while the window settles. It fades by itself and never takes a click. */}
+    <div className="td-splash" aria-hidden="true">
+      <div>
+        <b>千曲</b>
+        <s className="td-strings" />
+        <p><span>{VERSE_LINES[0]}</span><span>{VERSE_LINES[1]}</span></p>
+        <small>{VERSE_SOURCE}</small>
+        <i className="td-seal">知音</i>
+        <em>THOUSAND TUNES · {practiceConf.version}</em>
+      </div>
+    </div>
+    <aside className="td-rail">
+      <div className="td-brand" title={`${VERSE}——${VERSE_SOURCE}`}><b className="td-seal">千曲</b><small>THOUSAND TUNES</small></div>
+      <nav className="td-mode-nav" role="tablist" aria-label="页面" aria-orientation="vertical">
         {PAGES.map(([id, label]) => <button key={id} role="tab" aria-selected={page === id} onClick={() => setPage(id)}>{label}</button>)}
       </nav>
       <details className="td-skin">
@@ -181,6 +195,10 @@ export default function MainWindow() {
             onClick={e => { setSkin(id); e.currentTarget.closest("details")!.open = false; }}><i style={{ background: color }} />{label}</button>)}
         </div>
       </details>
+    </aside>
+    <div className="td-body">
+    <header className="td-top">
+      <span className="td-date">{cnDate(today)} · {weekdayName(today)}</span>
       <div className="td-streak" aria-label="打卡">
         <span title={`最长连续 ${run.longest} 天`}><b className="num">{run.current}</b>天连续</span>
         {checkedIn && !byHand ? <span className="td-checked">✓ 今日已打卡</span>
@@ -188,7 +206,6 @@ export default function MainWindow() {
             onClick={() => void mutate("set_journal_checkin", { date: today, on: !checkedIn })}>{checkedIn ? "✓ 今日已打卡" : "今日打卡"}</button>}
       </div>
     </header>
-    {page !== "practice" && metronome("bar")}
     {error && <p className="td-error td-banner" role="alert">{error}</p>}
     {transport?.device_problem && <p className="td-error td-banner" role="alert">{transport.device_problem}</p>}
 
@@ -226,6 +243,8 @@ export default function MainWindow() {
         <section className="td-panel"><Presets transport={transport} /></section>
       </div>}
     </main>
+    {page !== "practice" && metronome("bar")}
+    </div>
   </div>;
 }
 

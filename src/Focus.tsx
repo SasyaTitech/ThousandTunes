@@ -1,5 +1,6 @@
 import * as React from "react";
 import type { Transport } from "@/lib/types";
+import { CLASSICS } from "@/lib/quotes";
 import { FREE, formatClock, progressOf, sameItem, targetOf, tempoText, unitLabel, type Book, type Entry, type Exercise, type Item, type Journal } from "@/lib/journal";
 
 export type Mutate = (cmd: string, args: Record<string, unknown>) => Promise<boolean>;
@@ -84,7 +85,7 @@ export default function Focus({ journal, book, today, current, pending, session,
           </li>;
         })}
       </ol>
-      {listed.length === 0 && <p className="fx-rail-empty">清单是空的。到教材库里挑出你正在练的项目。</p>}
+      {listed.length === 0 && <p className="fx-rail-empty">清单是空的。到“教材”里挑出你正在练的项目。</p>}
       <button type="button" className="fx-add" aria-label="从教材添加" onClick={openLibrary}><b>＋</b><span>从教材添加</span></button>
       <button type="button" className="fx-free" aria-label="自由练习" aria-current={!exercise} title="不选项目，随便弹弹" onClick={() => select(null)}>
         <span className="fx-id">∞</span><span className="fx-title">自由练习</span><span className="fx-time num">{formatClock(live(FREE))}</span></button>
@@ -108,8 +109,17 @@ export default function Focus({ journal, book, today, current, pending, session,
       </div>}
 
       {exercise && <TodayRecord key={exercise.id} journal={journal} item={item} exercise={exercise} today={today} mutate={mutate} flush={flush} />}
+      <Motto key={`motto ${exercise?.id ?? "free"}`} />
     </section>
   </div>;
+}
+
+/** A line from the classics about staying with it: a new one for each exercise, and another on a press. */
+function Motto() {
+  const [at, setAt] = React.useState(() => Math.floor(Math.random() * CLASSICS.length));
+  const line = CLASSICS[at];
+  const another = () => setAt(n => (n + 1 + Math.floor(Math.random() * (CLASSICS.length - 1))) % CLASSICS.length);
+  return <p className="fx-motto"><button type="button" title="点一下，换一句" onClick={another}>{line.text}<small>{line.source}</small></button></p>;
 }
 
 function ExerciseHead({ exercise, journal, book, transport, setBpm }: { exercise: Exercise; journal: Journal; book: Book; transport: Transport | null; setBpm: (bpm: number) => void }) {

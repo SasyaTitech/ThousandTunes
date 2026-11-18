@@ -1,33 +1,37 @@
 import * as React from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Book, Journal } from "@/lib/journal";
-import { quoteFor } from "@/lib/quotes";
+import { lineFor, type Line, type LineKind } from "@/lib/quotes";
 import { shareData, type ShareData, type Shape } from "@/lib/share";
+import { cnDate } from "@/lib/verse";
 
-interface Palette { page: string; panel: string; text: string; muted: string; accent: string; bright: string; ok: string; line: string }
+interface Palette { page: string; text: string; muted: string; accent: string; bright: string; line: string; seal: string; sealInk: string }
 function palette(): Palette {
   const css = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
   return {
-    page: v("--page", "#121110"), panel: v("--panel", "#1a1917"), text: v("--text-primary", "#f4efe6"), muted: v("--text-secondary", "#aaa397"),
-    accent: v("--takt-from", "#f2a33a"), bright: v("--takt-to", "#ffc670"), ok: v("--ok", "#5fd3a8"), line: v("--border-strong", "#ffffff30"),
+    page: v("--page", "#0f0f0e"), text: v("--text-primary", "#ece7dc"), muted: v("--text-secondary", "#9a958a"),
+    accent: v("--takt-from", "#d9432f"), bright: v("--takt-to", "#f0624d"), line: v("--border-strong", "#ffffff42"),
+    seal: v("--seal", "#c8372a"), sealInk: v("--seal-ink", "#fff3e6"),
   };
 }
 
 const W = 1080, PAD = 84;
-const SANS = `"Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif`;
-const NUM = `Bahnschrift, "DIN Alternate", "Segoe UI", sans-serif`;
-/** A brush-written face for the book's name and the closing line: the two parts meant to feel like a certificate. */
+/** The title runs down the right edge; everything above the list keeps clear of it. */
+const COLUMN = 190;
+const SONG = `"Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC", STZhongsong, "Songti SC", SimSun, serif`;
 const KAI = `STKaiti, KaiTi, "楷体", "Kaiti SC", serif`;
+const NUM = `Bahnschrift, "DIN Alternate", "Segoe UI", sans-serif`;
+const SANS = `"Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif`;
 
 /** Where each band of the card sits, in card pixels. The square card is the portrait one with less air and no week. */
 const LAYOUT = {
-  portrait: { height: 1440, title: 250, titleSize: 76, byline: 302, label: 392, number: 580, numberSize: 200, stats: 700, rule: 790, listHead: 852, row: 926, rowStep: 80, rows: 5, week: 1296, quote: 1372 },
-  square: { height: 1080, title: 232, titleSize: 64, byline: 276, label: 344, number: 494, numberSize: 160, stats: 590, rule: 664, listHead: 716, row: 780, rowStep: 70, rows: 3, week: 0, quote: 1006 },
+  portrait: { height: 1440, label: 262, number: 486, numberSize: 236, strings: 548, stats: 664, rule: 770, listHead: 842, row: 912, rowStep: 72, rows: 4, week: 1190, quote: 1300, quoteSize: 32, seal: [76, 108] },
+  square: { height: 1080, label: 248, number: 442, numberSize: 200, strings: 492, stats: 590, rule: 672, listHead: 736, row: 804, rowStep: 68, rows: 2, week: 0, quote: 946, quoteSize: 28, seal: [64, 92] },
 } as const;
 
 /** Draws the card in the colours the window is wearing. Everything is in card pixels, 1080 wide. */
-export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Shape, quote: string) {
+export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Shape, line: Line) {
   const L = LAYOUT[shape], H = L.height;
   canvas.width = W; canvas.height = H;
   const c = canvas.getContext("2d")!;
@@ -43,36 +47,46 @@ export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Sha
     while (cut.length > 1 && c.measureText(`${cut}…`).width > width) cut = cut.slice(0, -1);
     return `${cut}…`;
   };
+  /** Characters set one under another, each centred on x. */
+  const down = (s: string, x: number, top: number, size: number, step: number, weight: number, family: string, colour: string) => {
+    [...s].forEach((ch, i) => text(ch, x, top + i * step + size * .86, `${weight} ${size}px ${family}`, colour, "center"));
+  };
 
-  // Ground, a soft light from the top corner, and a frame.
-  c.fillStyle = p.page; c.fillRect(0, 0, W, H);
-  const glow = c.createRadialGradient(0, 0, 0, 0, 0, 900);
-  glow.addColorStop(0, p.accent); glow.addColorStop(1, "transparent");
-  c.globalAlpha = .2; c.fillStyle = glow; c.fillRect(0, 0, W, H); c.globalAlpha = 1;
-  c.fillStyle = p.panel; c.globalAlpha = .55; c.beginPath(); c.roundRect(36, 36, W - 72, H - 72, 40); c.fill(); c.globalAlpha = 1;
-  c.strokeStyle = p.line; c.lineWidth = 2; c.beginPath(); c.roundRect(36, 36, W - 72, H - 72, 40); c.stroke();
-
+  // Ground, and one huge character cropped by the edge.
   c.textBaseline = "alphabetic";
-  c.letterSpacing = "7px";
-  text("TAKTDOCK", PAD, 132, `700 28px ${SANS}`, p.muted);
-  c.letterSpacing = "0px";
-  text(`${data.date.replaceAll("-", ".")}  ${data.weekday}`, W - PAD, 132, `400 28px ${NUM}`, p.muted, "right");
+  c.fillStyle = p.page; c.fillRect(0, 0, W, H);
+  c.globalAlpha = .045; text("曲", W - 250, H - 150, `400 780px ${KAI}`, p.text, "center"); c.globalAlpha = 1;
 
-  // The book, named the way a certificate would name it.
-  const titleFont = `400 ${L.titleSize}px ${KAI}`;
-  text(fit(data.book, titleFont, W - PAD * 2), PAD, L.title, titleFont, p.bright);
-  if (data.byline) text(fit(data.byline, `400 28px ${KAI}`, W - PAD * 2), PAD + 4, L.byline, `400 28px ${KAI}`, p.muted);
+  // Head: a heavy rule, the name in small capitals, the date written out.
+  c.fillStyle = p.text; c.fillRect(PAD, 84, W - PAD * 2, 4);
+  c.letterSpacing = "7px";
+  text("THOUSAND TUNES", PAD, 132, `600 18px ${SANS}`, p.muted);
+  c.letterSpacing = "5px";
+  text(`${cnDate(data.date)} · ${data.weekday}`, PAD, 186, `400 30px ${SONG}`, p.text);
+  c.letterSpacing = "0px";
+
+  // The book runs down the right edge, its byline in a second column beside it.
+  const room = L.rule - 30 - 150, title = [...data.book.replace(/\s+/g, "")];
+  const step = Math.min(88, room / title.length), size = Math.min(76, Math.floor(step * .9));
+  down(title.join(""), W - PAD - 40, 150, size, step, 600, SONG, p.text);
+  const byline = [...data.byline.replace(/\s*·\s*/g, "·").replace(/\s+/g, "")].slice(0, Math.floor(room / 30));
+  down(byline.join(""), W - PAD - 40 - 84, 154, 24, 30, 400, SONG, p.muted);
 
   // The day's time, as large as the card allows.
-  text("今日练习", PAD, L.label, `400 32px ${SANS}`, p.muted);
+  const left = W - PAD - COLUMN;
+  text("今日练习", PAD, L.label, `400 32px ${SONG}`, p.muted);
   const h = Math.floor(data.minutes / 60), m = data.minutes % 60;
-  let x = PAD;
+  let x = PAD - 6;
   const big = (n: string, unit: string) => {
-    x += text(n, x, L.number, `600 ${L.numberSize}px ${NUM}`, p.text) + 14;
-    x += text(unit, x, L.number, `400 42px ${SANS}`, p.muted) + 30;
+    x += text(n, x, L.number, `300 condensed ${L.numberSize}px ${NUM}`, p.text) + 14;
+    x += text(unit, x, L.number, `400 42px ${SONG}`, p.muted) + 30;
   };
-  if (data.minutes === 0) text(data.checkedIn ? "已打卡" : "还没开始", PAD, L.number - 16, `600 ${Math.round(L.numberSize * .68)}px ${SANS}`, p.text);
+  if (data.minutes === 0) text(data.checkedIn ? "已打卡" : "还没开始", PAD, L.number - 20, `600 ${Math.round(L.numberSize * .6)}px ${SONG}`, p.text);
   else { if (h) big(String(h), "小时"); if (m || !h) big(String(m), "分钟"); }
+
+  // Six strings.
+  c.fillStyle = p.line;
+  for (let i = 0; i < 6; i++) c.fillRect(PAD, L.strings + i * 4, left - PAD, 1);
 
   // Three numbers that carry over from day to day.
   const hours = data.totalMinutes >= 60;
@@ -81,70 +95,83 @@ export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Sha
     [hours ? (data.totalMinutes / 60).toFixed(1) : String(data.totalMinutes), hours ? "小时" : "分钟", "累计练习"],
   ];
   stats.forEach(([n, unit, label], i) => {
-    const sx = PAD + i * ((W - PAD * 2) / 3);
-    const w = text(n, sx, L.stats, `600 68px ${NUM}`, i === 0 ? p.bright : p.text);
-    text(unit, sx + w + 10, L.stats, `400 28px ${SANS}`, p.muted);
-    text(label, sx, L.stats + 44, `400 26px ${SANS}`, p.muted);
+    const sx = PAD + i * ((left - PAD) / 3);
+    const w = text(n, sx, L.stats, `300 condensed 78px ${NUM}`, i === 0 ? p.bright : p.text);
+    text(unit, sx + w + 10, L.stats, `400 26px ${SONG}`, p.muted);
+    text(label, sx, L.stats + 46, `400 26px ${SONG}`, p.muted);
   });
-  c.fillStyle = p.line; c.fillRect(PAD, L.rule, W - PAD * 2, 2);
+  c.fillStyle = p.line; c.fillRect(PAD, L.rule, W - PAD * 2, 1);
 
   // What was practised and for how long, longest first.
   const more = data.items.length > L.rows, shown = data.items.slice(0, more ? L.rows - 1 : L.rows);
-  text(data.items.length ? `今天练了 ${data.items.length} 项` : "今天还没有练习记录", PAD, L.listHead, `400 28px ${SANS}`, p.muted);
+  c.fillStyle = p.accent; c.fillRect(PAD, L.listHead - 24, 5, 26);
+  text(data.items.length ? `今天练了 ${data.items.length} 项` : "今天还没有练习记录", PAD + 20, L.listHead, `400 28px ${SONG}`, p.muted);
   shown.forEach((item, i) => {
     const y = L.row + i * L.rowStep;
     let right = W - PAD;
-    if (item.passed) right -= text("✓ 达标", right, y, `600 28px ${SANS}`, p.ok, "right") + 24;
-    if (item.speed) right -= text(item.speed, right, y, `600 32px ${NUM}`, p.bright, "right") + 28;
-    if (item.time) right -= text(item.time, right, y, `400 28px ${SANS}`, p.muted, "right") + 28;
-    text(fit(item.title, `500 36px ${SANS}`, right - PAD), PAD, y, `500 36px ${SANS}`, p.text);
+    if (item.passed) right -= text("达标", right, y, `600 26px ${SONG}`, p.bright, "right") + 24;
+    if (item.speed) right -= text(item.speed, right, y, `400 condensed 34px ${NUM}`, p.text, "right") + 28;
+    if (item.time) right -= text(item.time, right, y, `400 28px ${SONG}`, p.muted, "right") + 28;
+    text(fit(item.title, `600 36px ${SONG}`, right - PAD), PAD, y, `600 36px ${SONG}`, p.text);
   });
-  if (more) text(`还有 ${data.items.length - shown.length} 项`, PAD, L.row + shown.length * L.rowStep, `400 28px ${SANS}`, p.muted);
+  if (more) text(`还有 ${data.items.length - shown.length} 项`, PAD, L.row + shown.length * L.rowStep, `400 28px ${SONG}`, p.muted);
 
-  // The week behind today, only where there is room for it.
+  // The week behind today as seven dots, inked by how long each day was; only where there is room.
   if (L.week) {
-    const peak = Math.max(30, ...data.week.map(d => d.minutes)), tall = 64, step = (W - PAD * 2) / 7, wide = 76;
+    const gap = (W - PAD * 2) / 7;
     data.week.forEach((d, i) => {
-      const bx = PAD + i * step + (step - wide) / 2, bh = d.minutes ? Math.max(8, d.minutes / peak * tall) : 4;
-      c.fillStyle = d.minutes ? p.accent : p.line; c.globalAlpha = d.today || !d.minutes ? 1 : .5;
-      c.beginPath(); c.roundRect(bx, L.week - 34 - bh, wide, bh, 8); c.fill(); c.globalAlpha = 1;
-      text(d.label, bx + wide / 2, L.week, `400 24px ${SANS}`, d.today ? p.bright : p.muted, "center");
+      const cx = PAD + (i + .5) * gap, level = d.minutes === 0 ? 0 : d.minutes < 15 ? .28 : d.minutes < 30 ? .5 : d.minutes < 60 ? .76 : 1;
+      c.beginPath(); c.arc(cx, L.week, 15, 0, Math.PI * 2);
+      if (level) { c.globalAlpha = level; c.fillStyle = p.text; c.fill(); c.globalAlpha = 1; } else { c.strokeStyle = p.line; c.lineWidth = 1.5; c.stroke(); }
+      if (d.today) { c.beginPath(); c.arc(cx, L.week, 23, 0, Math.PI * 2); c.strokeStyle = p.accent; c.lineWidth = 2; c.stroke(); }
+      text(d.label, cx, L.week + 54, `400 22px ${SONG}`, d.today ? p.bright : p.muted, "center");
     });
   }
 
-  // A closing line, broken in two when it is long.
-  const quoteFont = `400 34px ${KAI}`, wide = W - PAD * 2 - 40;
+  // A closing line, broken in two when it is long, signed with its source and sealed.
+  const [sw, sh] = L.seal, quoteFont = `400 ${L.quoteSize}px ${KAI}`, wide = W - PAD * 2 - sw - 36;
   c.font = quoteFont;
-  const lines = [`“${quote}”`];
-  if (c.measureText(lines[0]).width > wide) {
-    const whole = lines[0];
-    // Break after punctuation nearest the middle, else in the middle.
+  const lines = [line.text];
+  if (c.measureText(line.text).width > wide) {
+    // Break after the punctuation nearest the middle, else in the middle.
+    const whole = line.text;
     let at = Math.ceil(whole.length / 2), best = Infinity;
     for (let i = 2; i < whole.length - 2; i++) if ("，。；：！？—）".includes(whole[i - 1]) && Math.abs(i - whole.length / 2) < best) { best = Math.abs(i - whole.length / 2); at = i; }
     lines.splice(0, 1, whole.slice(0, at), whole.slice(at));
   }
-  lines.forEach((line, i) => text(fit(line, quoteFont, wide), W / 2, L.quote - (lines.length - 1 - i) * 46, quoteFont, p.muted, "center"));
+  const lead = Math.round(L.quoteSize * 1.44);
+  lines.forEach((s, i) => text(fit(s, quoteFont, wide), PAD, L.quote + i * lead, quoteFont, p.text));
+  if (line.source) text(`—— ${line.source}`, PAD, L.quote + (lines.length - 1) * lead + 42, `400 22px ${SONG}`, p.muted);
+  const sx = W - PAD - sw, sy = H - 70 - sh;
+  c.fillStyle = p.seal; c.fillRect(sx, sy, sw, sh);
+  c.strokeStyle = p.sealInk; c.lineWidth = 1.5; c.globalAlpha = .7; c.strokeRect(sx + 5, sy + 5, sw - 10, sh - 10); c.globalAlpha = 1;
+  down("千曲", sx + sw / 2, sy + sh * .1, Math.round(sw * .58), sh * .4, 400, KAI, p.sealInk);
 }
 
 const pngOf = (canvas: HTMLCanvasElement) => new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("图片生成失败")), "image/png"));
+function storedKind(): LineKind {
+  try { return localStorage.getItem("td-share-line") === "joke" ? "joke" : "classic"; } catch { return "classic"; }
+}
 
 /** A preview of today's card, with the two things one does with it: copy it, or keep it as a file. */
 export default function ShareDialog({ journal, book, today, close }: { journal: Journal; book: Book; today: string; close: () => void }) {
   const canvas = React.useRef<HTMLCanvasElement>(null);
   const [shape, setShape] = React.useState<Shape>("portrait");
+  const [kind, setKind] = React.useState<LineKind>(storedKind);
   const [turn, setTurn] = React.useState(0);
-  const quote = quoteFor(today, turn);
+  const line = lineFor(kind, today, turn);
   const [note, setNote] = React.useState("");
   const [saved, setSaved] = React.useState(false);
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const data = React.useMemo(() => shareData(journal, book, today), [journal, book, today]);
-  React.useEffect(() => { if (canvas.current) drawShare(canvas.current, data, shape, quote); }, [data, shape, quote]);
+  React.useEffect(() => { if (canvas.current) drawShare(canvas.current, data, shape, line); }, [data, shape, line]);
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [close]);
+  const pick = (next: LineKind) => { setKind(next); setTurn(0); try { localStorage.setItem("td-share-line", next); } catch { /* private mode */ } };
 
   const run = async (fn: (png: Blob) => Promise<void>) => {
     setBusy(true); setError(""); setNote(""); setSaved(false);
@@ -165,13 +192,17 @@ export default function ShareDialog({ journal, book, today, close }: { journal: 
       <canvas ref={canvas} className="sh-card" data-shape={shape} role="img" aria-label={`${data.date} 的练习分享图`} />
       <div className="sh-side">
         <h3>分享今日练习</h3>
-        <p className="sh-hint">图片跟随当前配色，内容取自今天的记录。想换颜色，先在右上角换配色。</p>
-        <p className="sh-quote" aria-label="卡片上的话">{quote}</p>
-        <div className="sh-shapes" role="radiogroup" aria-label="图片比例">
+        <p className="sh-hint">图片跟随当前配色，内容取自今天的记录。</p>
+        <div className="sh-pick" role="radiogroup" aria-label="图片比例">
           <button type="button" role="radio" aria-checked={shape === "portrait"} onClick={() => setShape("portrait")}>竖版 3:4</button>
           <button type="button" role="radio" aria-checked={shape === "square"} onClick={() => setShape("square")}>方形 1:1</button>
         </div>
-        <button type="button" title={quote} onClick={() => setTurn(n => n + 1)}>换一句话</button>
+        <div className="sh-pick" role="radiogroup" aria-label="落款的话">
+          <button type="button" role="radio" aria-checked={kind === "classic"} onClick={() => pick("classic")}>古文</button>
+          <button type="button" role="radio" aria-checked={kind === "joke"} onClick={() => pick("joke")}>练琴梗</button>
+        </div>
+        <p className="sh-quote" aria-label="卡片上的话">{line.text}{line.source && <small>{line.source}</small>}</p>
+        <button type="button" onClick={() => setTurn(n => n + 1)}>换一句话</button>
         <button type="button" className="primary" disabled={busy} onClick={() => void copy()}>复制图片</button>
         <button type="button" disabled={busy} onClick={() => void save()}>保存为图片文件</button>
         {note && <p className="sh-note" role="status">{note}</p>}

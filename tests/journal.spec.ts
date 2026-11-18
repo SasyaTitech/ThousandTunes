@@ -132,7 +132,7 @@ test("earlier days can be filled in, edited from the history and removed in the 
   await open(page, td => {
     td.journal.entries = [60, 70, 80].map((speed, i) => ({ book: "shuaishuai-7w-1", exercise: "W1-EX6", date: `2026-11-1${4 + i}`, speed, seconds: 605, passed: false, note: "" }));
   });
-  await page.getByRole("tab", { name: "教材库" }).click();
+  await page.getByRole("tab", { name: "教材" }).click();
   await page.getByRole("button", { name: "W1-EX6 1&3指全指板爬格子" }).click();
   await expect(page.getByRole("img", { name: "速度变化，从 60 到 80 BPM" })).toBeVisible();
   await page.getByRole("button", { name: "编辑 2026-11-15 的记录" }).click();
@@ -189,9 +189,9 @@ test("statistics summarise days, time and textbook progress", async ({ page }) =
   await expect(page.locator('.st-heat i[data-today="true"]')).toHaveAttribute("data-level", "3");
   await expect(page.locator(".st-recent li")).toHaveCount(5);
   await page.screenshot({ path: test.info().outputPath("stats.png") });
-  await page.getByRole("tab", { name: "教材库" }).click();
+  await page.getByRole("tab", { name: "教材" }).click();
   await page.screenshot({ path: test.info().outputPath("library.png") });
-  await page.getByRole("tab", { name: "节拍器与预设" }).click();
+  await page.getByRole("tab", { name: "节拍器" }).click();
   await page.screenshot({ path: test.info().outputPath("metronome.png") });
 });
 
@@ -204,7 +204,7 @@ test("the practice page and library stay usable at the minimum window size", asy
   await page.getByRole("button", { name: "标记达标" }).scrollIntoViewIfNeeded();
   await expect(page.getByRole("button", { name: "标记达标" })).toBeInViewport();
   await page.screenshot({ path: test.info().outputPath("narrow.png") });
-  await page.getByRole("tab", { name: "教材库" }).click();
+  await page.getByRole("tab", { name: "教材" }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("button", { name: "保存记录" }).scrollIntoViewIfNeeded();
   await expect(page.getByRole("button", { name: "保存记录" })).toBeInViewport();
@@ -276,17 +276,17 @@ test("the window opens on the home page, which starts practice in one click", as
 test("a colour scheme is chosen from the header and kept for next time", async ({ page }) => {
   await installTauriMock(page);
   await page.goto("/?view=main");
-  await expect(page.locator("html")).toHaveAttribute("data-skin", "amber");
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "qianli");
   await page.getByText("配色", { exact: true }).click();
-  await expect(page.getByRole("radio")).toHaveCount(6);
-  await page.getByRole("radio", { name: "海蓝" }).click();
-  await expect(page.locator("html")).toHaveAttribute("data-skin", "ocean");
+  await expect(page.getByRole("radio")).toHaveCount(12);
+  await page.getByRole("radio", { name: "黛青" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "dai");
   await expect(page.getByRole("radiogroup", { name: "主题配色" })).toBeHidden();
   const accent = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--takt-from").trim());
-  expect(await accent()).toBe("#4aa8ff");
+  expect(await accent()).toBe("#5fa8c4");
   await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("data-skin", "ocean");
-  expect(await accent()).toBe("#4aa8ff");
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "dai");
+  expect(await accent()).toBe("#5fa8c4");
 });
 
 test("this run starts again at each press of start while the day's total adds up", async ({ page }) => {
@@ -339,7 +339,7 @@ test("today's practice becomes a picture that can be copied or saved", async ({ 
   expect(await size()).toEqual([1080, 1080]);
   await page.screenshot({ path: test.info().outputPath("share-square.png") });
   await dialog.getByRole("button", { name: "保存为图片文件" }).click();
-  await expect(dialog.getByRole("status")).toContainText("TaktDock 练习 2026-11-18 方形.png");
+  await expect(dialog.getByRole("status")).toContainText("千曲 2026-11-18 方形.png");
   const sent = (await calls(page, "save_share_image"))[0].args;
   expect([sent.date, sent.shape, sent.data.slice(0, 8)]).toEqual(["2026-11-18", "square", [137, 80, 78, 71, 13, 10, 26, 10]]);
   await dialog.getByRole("button", { name: "打开所在文件夹" }).click();
@@ -350,4 +350,29 @@ test("today's practice becomes a picture that can be copied or saved", async ({ 
   expect(await page.evaluate(async () => (await navigator.clipboard.read())[0].types)).toContain("image/png");
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
+});
+
+test("the name and its verse greet the player, then stay on the home page", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("/?view=main");
+  const card = page.locator(".td-splash");
+  await expect(card).toHaveText(/^千曲操千曲而后晓声，观千剑而后识器。刘勰《文心雕龙·知音》知音THOUSAND TUNES · 1\.0\.0-practice\.\d+$/);
+  // It is decoration: it cannot be clicked or read out, and it goes away by itself.
+  expect(await card.evaluate(el => [getComputedStyle(el).pointerEvents, el.getAttribute("aria-hidden")])).toEqual(["none", "true"]);
+  await page.getByRole("tab", { name: "教材" }).click();
+  await page.getByRole("tab", { name: "主页" }).click();
+  await expect(card).toBeHidden();
+  await expect(page.getByRole("region", { name: "主页" }).locator(".st-verse")).toHaveText("操千曲而后晓声，观千剑而后识器。刘勰《文心雕龙·知音》");
+  await expect(page.locator(".td-brand")).toHaveText("千曲THOUSAND TUNES");
+});
+
+test("the practice page closes with a line from the classics, and a press brings another", async ({ page }) => {
+  await open(page, td => { td.journal.practising = [{ book: "shuaishuai-7w-1", exercise: "W1-EX5" }]; });
+  const motto = page.locator(".fx-motto button");
+  await expect(motto).toContainText(/[《联]/); // every line names where it is from
+  const first = await motto.textContent();
+  await motto.click();
+  await expect(motto).not.toHaveText(first!);
+  // The date is written out in the header, the way a letter is dated.
+  await expect(page.locator(".td-date")).toHaveText("二〇二六年十一月十八日 · 周三");
 });

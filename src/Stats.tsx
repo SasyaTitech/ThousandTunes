@@ -1,5 +1,6 @@
 import * as React from "react";
 import ShareDialog from "@/Share";
+import { VERSE_LINES, VERSE_SOURCE } from "@/lib/verse";
 import { addDays, bookTotals, formatClock, formatDuration, formatMinutes, secondsByDay, streaks, unitLabel, weekdayOf, type Book, type Item, type Journal } from "@/lib/journal";
 
 const WEEKS = 26;
@@ -45,15 +46,18 @@ export default function Stats({ journal, book, today, practise, openLibrary }: P
 
   return <section className="st" aria-label="主页">
     <header className="st-hero">
-      <div>
+      <div className="st-hero-main">
         <p className="st-kicker">{book.title}</p>
         <h2>{days.has(today) ? todayMinutes > 0 ? `今天已练 ${formatMinutes(todayMinutes)}` : "今天已打卡" : "今天还没开始练"}</h2>
         <p className="st-sub">{run.current > 0 ? `已连续打卡 ${run.current} 天` : "目前没有连续打卡"}{firstDay ? ` · 从 ${firstDay} 起共练了 ${days.size} 天` : ""}</p>
-      </div>
       <div className="st-hero-actions">
         <button type="button" className="st-share" onClick={() => setSharing(true)}>分享今天</button>
         <button type="button" className="primary st-start" onClick={() => practise()}>开始练习 →</button>
       </div>
+      </div>
+      <s className="td-strings" aria-hidden="true" />
+      <p className="st-verse"><span>{VERSE_LINES[0]}</span><span>{VERSE_LINES[1]}</span><small>{VERSE_SOURCE}</small></p>
+      <b className="st-glyph" aria-hidden="true">曲</b>
     </header>
     {sharing && <ShareDialog journal={journal} book={book} today={today} close={() => setSharing(false)} />}
 
@@ -80,7 +84,7 @@ export default function Stats({ journal, book, today, practise, openLibrary }: P
 
       <section className="st-panel st-wide" aria-label="今日清单">
         <h3>今日清单 <small>点一条直接去练</small></h3>
-        {listed.length === 0 ? <p className="st-empty">还没有挑出正在练的项目。<button type="button" onClick={openLibrary}>去教材库挑选</button></p> : <ul className="st-list">
+        {listed.length === 0 ? <p className="st-empty">还没有挑出正在练的项目。<button type="button" onClick={openLibrary}>去教材里挑选</button></p> : <ul className="st-list">
           {listed.map(e => { const s = secondsToday(e.id), goal = (e.minutes ?? 0) * 60, done = goal > 0 && s >= goal; return <li key={e.id}>
             <button type="button" data-done={done} aria-label={`去练 ${e.id} ${e.title}`} onClick={() => practise({ book: book.id, exercise: e.id })}>
               <small className="num">{e.id}</small><span>{e.title}</span>

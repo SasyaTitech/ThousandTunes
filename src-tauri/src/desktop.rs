@@ -21,7 +21,7 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
         LABEL,
         tauri::WebviewUrl::App("index.html?view=main".into()),
     )
-    .title("TaktDock — Practice")
+    .title("千曲")
     .inner_size(1120.0, 780.0)
     .min_inner_size(640.0, 540.0)
     .decorations(true)
