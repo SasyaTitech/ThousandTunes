@@ -1,7 +1,8 @@
 {
   "id": "shuaishuai-7w-1",
-  "title": "零基础入门电吉他7周自学计划 1",
-  "author": "帅帅是把电吉他",
+  "title": "帅帅 7 周计划 I",
+  "subtitle": "零基础入门电吉他",
+  "author": "帅帅",
   "weeks": [
     { "title": "第一周", "exercises": [
       {"id": "W1-EX1", "title": "右手空弦下拨", "page": 5, "minutes": 5, "tempo": {"from": 40, "to": 40}},

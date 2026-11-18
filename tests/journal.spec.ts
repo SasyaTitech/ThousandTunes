@@ -303,3 +303,51 @@ test("this run starts again at each press of start while the day's total adds up
   await expect(page.getByLabel("本次计时")).toHaveText("0:07");
   await expect(page.getByLabel("今日计时")).toHaveText("0:47 / 10:00");
 });
+
+test("today's practice becomes a picture that can be copied or saved", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await installTauriMock(page);
+  await page.clock.install({ time: NOW });
+  await page.addInitScript(() => {
+    const td = (window as any).__TD;
+    const e = (book: string, exercise: string, date: string, seconds: number, speed: number | null, passed = false) => ({ book, exercise, date, seconds, speed, passed, note: "" });
+    td.journal.entries = [e("shuaishuai-7w-1", "W1-EX5", "2026-11-18", 1800, 80), e("shuaishuai-7w-1", "W1-EX6", "2026-11-18", 600, 70, true), e("_free", "_free", "2026-11-18", 300, null), e("shuaishuai-7w-1", "W1-EX5", "2026-11-17", 1200, 75)];
+  });
+  await page.setViewportSize({ width: 1120, height: 780 });
+  await page.goto("/?view=main");
+  await page.getByRole("button", { name: "分享今天" }).click();
+  const dialog = page.getByRole("dialog", { name: "分享今日练习" });
+  const card = dialog.getByRole("img", { name: "2026-11-18 的练习分享图" });
+  await expect(card).toBeVisible();
+  const size = () => card.evaluate((c: HTMLCanvasElement) => [c.width, c.height]);
+  expect(await size()).toEqual([1080, 1440]);
+  // The card is really drawn: it wears the page colour and has many others on it.
+  const colours = await card.evaluate((c: HTMLCanvasElement) => {
+    const d = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data, seen = new Set<number>();
+    for (let i = 0; i < d.length; i += 4 * 97) seen.add(d[i] << 16 | d[i + 1] << 8 | d[i + 2]);
+    return seen.size;
+  });
+  expect(colours).toBeGreaterThan(50);
+  await page.screenshot({ path: test.info().outputPath("share.png") });
+
+  const line = dialog.getByLabel("卡片上的话");
+  const first = await line.textContent();
+  await dialog.getByRole("button", { name: "换一句话" }).click();
+  await expect(line).not.toHaveText(first!);
+
+  await dialog.getByRole("radio", { name: "方形 1:1" }).click();
+  expect(await size()).toEqual([1080, 1080]);
+  await page.screenshot({ path: test.info().outputPath("share-square.png") });
+  await dialog.getByRole("button", { name: "保存为图片文件" }).click();
+  await expect(dialog.getByRole("status")).toContainText("TaktDock 练习 2026-11-18 方形.png");
+  const sent = (await calls(page, "save_share_image"))[0].args;
+  expect([sent.date, sent.shape, sent.data.slice(0, 8)]).toEqual(["2026-11-18", "square", [137, 80, 78, 71, 13, 10, 26, 10]]);
+  await dialog.getByRole("button", { name: "打开所在文件夹" }).click();
+  expect(await calls(page, "open_share_folder")).toHaveLength(1);
+
+  await dialog.getByRole("button", { name: "复制图片" }).click();
+  await expect(dialog.getByRole("status")).toContainText("已复制");
+  expect(await page.evaluate(async () => (await navigator.clipboard.read())[0].types)).toContain("image/png");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+});

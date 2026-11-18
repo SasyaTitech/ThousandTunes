@@ -161,6 +161,8 @@ export async function installTauriMock(page: Page) {
             td.journal.checkins = td.journal.checkins.filter((d: string) => d !== args.date);
             if (args.on) td.journal.checkins.push(args.date);
             return Promise.resolve(structuredClone(td.journal));
+          case "save_share_image":
+            return Promise.resolve(`C:\\Users\\me\\Pictures\\TaktDock\\TaktDock 练习 ${args.date}${args.shape === "square" ? " 方形" : ""}.png`);
           case "set_journal_book":
             td.journal.active_book = args.book;
             return Promise.resolve(structuredClone(td.journal));

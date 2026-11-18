@@ -1,3 +1,5 @@
+import * as React from "react";
+import ShareDialog from "@/Share";
 import { addDays, bookTotals, formatClock, formatDuration, formatMinutes, secondsByDay, streaks, unitLabel, weekdayOf, type Book, type Item, type Journal } from "@/lib/journal";
 
 const WEEKS = 26;
@@ -18,6 +20,7 @@ interface Props {
  * to be operated. Today's list sits here too, so one click starts practising.
  */
 export default function Stats({ journal, book, today, practise, openLibrary }: Props) {
+  const [sharing, setSharing] = React.useState(false);
   const seconds = secondsByDay(journal);
   // Whole minutes are plenty for a calendar and a bar chart.
   const days = new Map([...seconds].map(([day, s]) => [day, Math.round(s / 60)]));
@@ -47,8 +50,12 @@ export default function Stats({ journal, book, today, practise, openLibrary }: P
         <h2>{days.has(today) ? todayMinutes > 0 ? `今天已练 ${formatMinutes(todayMinutes)}` : "今天已打卡" : "今天还没开始练"}</h2>
         <p className="st-sub">{run.current > 0 ? `已连续打卡 ${run.current} 天` : "目前没有连续打卡"}{firstDay ? ` · 从 ${firstDay} 起共练了 ${days.size} 天` : ""}</p>
       </div>
-      <button type="button" className="primary st-start" onClick={() => practise()}>开始练习 →</button>
+      <div className="st-hero-actions">
+        <button type="button" className="st-share" onClick={() => setSharing(true)}>分享今天</button>
+        <button type="button" className="primary st-start" onClick={() => practise()}>开始练习 →</button>
+      </div>
     </header>
+    {sharing && <ShareDialog journal={journal} book={book} today={today} close={() => setSharing(false)} />}
 
     <div className="st-tiles">
       <div data-accent="true"><b className="num">{run.current}</b><span>连续打卡（天）</span></div>

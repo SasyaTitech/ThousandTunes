@@ -12,6 +12,7 @@ pub mod journal;
 pub mod monitor;
 pub mod practice;
 pub mod settings;
+pub mod share;
 pub mod shell;
 pub mod shortcuts;
 pub mod state;
@@ -357,7 +358,9 @@ pub fn run() {
             journal::set_journal_practising,
             journal::delete_journal_entry,
             journal::set_journal_checkin,
-            journal::set_journal_book
+            journal::set_journal_book,
+            share::save_share_image,
+            share::open_share_folder
         ])
         .setup(|app| {
             let handle = app.handle().clone();

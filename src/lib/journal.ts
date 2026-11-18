@@ -18,6 +18,8 @@ export interface Exercise {
 export interface Book {
   id: string;
   title: string;
+  /** What the course is, when the title alone does not say. */
+  subtitle?: string;
   author?: string;
   weeks: Array<{ title: string; exercises: Exercise[] }>;
 }

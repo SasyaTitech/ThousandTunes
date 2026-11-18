@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test";
 import { TAP_RESET_MS, TapTempo } from "../src/lib/tap";
 import { bpmToFill, fillToBpm, subdivisionLabel } from "../src/lib/utils";
 import { addDays, dayOf, formatClock, formatDuration, formatMinutes, PracticeClock, progressOf, secondsByDay, streaks, targetOf, tempoText, weekdayOf, type Book, type Exercise } from "../src/lib/journal";
+import { shareData } from "../src/lib/share";
+import { QUOTES, quoteFor } from "../src/lib/quotes";
 import bookJson from "../src/books/shuaishuai-7w-1.json" with { type: "json" };
 
 const book = bookJson as Book;
@@ -115,4 +117,33 @@ test("the bundled textbook outline is complete and consistent", () => {
     if (e.tempo && e.tempo.to !== null) expect(e.tempo.to, e.id).toBeGreaterThanOrEqual(e.tempo.from);
     if (!e.tempo) expect(e.goal, e.id).toBeTruthy();
   }
+});
+
+test("the share card says what was practised today, longest first", () => {
+  const e = (bookId: string, exercise: string, date: string, seconds: number, speed: number | null, passed = false) => ({ book: bookId, exercise, date, seconds, speed, passed, note: "" });
+  const journal = { version: 2, active_book: book.id, practising: [], checkins: [], entries: [
+    e(book.id, "W1-EX6", "2026-11-18", 600, 70, true), e(book.id, "W1-EX5", "2026-11-18", 1800, 80), e("_free", "_free", "2026-11-18", 300, null),
+    e(book.id, "W1-EX5", "2026-11-17", 1200, 75), e(book.id, "W1-EX7", "2026-11-18", 0, null),
+  ] };
+  const card = shareData(journal, book, "2026-11-18");
+  expect([card.minutes, card.streak, card.days, card.totalMinutes, card.weekday, card.checkedIn]).toEqual([45, 2, 2, 65, "周三", true]);
+  expect(card.items).toEqual([
+    { title: "1&2指全指板爬格子", time: "30 分钟", speed: "80 BPM", passed: false },
+    { title: "1&3指全指板爬格子", time: "10 分钟", speed: "70 BPM", passed: true },
+    { title: "自由练习", time: "5 分钟", speed: "", passed: false },
+  ]);
+  expect(card.week.map(d => d.minutes)).toEqual([0, 0, 0, 0, 0, 20, 45]);
+  expect(card.week.map(d => d.label).join("")).toBe("四五六日一二三");
+  expect([card.book, card.byline]).toEqual(["帅帅 7 周计划 I", "零基础入门电吉他 · 帅帅 著"]);
+  expect(shareData({ ...journal, entries: [] }, book, "2026-11-18")).toMatchObject({ minutes: 0, checkedIn: false, streak: 0, items: [] });
+});
+
+test("the card's closing line is fixed for a day, steps on when asked, and fits two lines", () => {
+  expect(quoteFor("2026-11-18")).toBe(quoteFor("2026-11-18"));
+  expect(QUOTES).toContain(quoteFor("2026-11-18"));
+  const round = Array.from({ length: QUOTES.length }, (_, i) => quoteFor("2026-11-18", i));
+  expect(new Set(round).size).toBe(QUOTES.length);
+  expect(quoteFor("2026-11-18", QUOTES.length)).toBe(round[0]);
+  expect(new Set(QUOTES).size).toBe(QUOTES.length);
+  for (const q of QUOTES) expect(q.length, q).toBeLessThanOrEqual(40);
 });

@@ -203,6 +203,24 @@ span.td-checked { padding: 6px 0; }
 .st-hero h2 { margin: 4px 0 2px; font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
 .st-sub { margin: 0; font-size: 12px; color: var(--text-secondary); }
 .st-start { padding: 11px 26px; font-size: 14px; }
+.st-hero-actions { display: flex; align-items: center; gap: 10px; }
+.st-share { padding: 11px 18px; font-size: 14px; background: transparent; }
+
+/* Share card: a preview of the picture beside what can be done with it */
+.sh-back { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: #000a; }
+.sh { display: flex; gap: 22px; max-width: 100%; max-height: 100%; padding: 22px; border: 1px solid var(--border-strong); border-radius: 16px; background: var(--raised); box-shadow: 0 24px 80px #0009; }
+.sh-card { display: block; height: min(640px, calc(100vh - 110px)); width: auto; border-radius: 12px; box-shadow: 0 0 0 1px var(--border); }
+.sh-card[data-shape="square"] { height: min(520px, calc(100vh - 110px)); align-self: center; }
+.sh-side { width: 210px; display: flex; flex-direction: column; gap: 10px; }
+.sh-side h3 { margin: 0; }
+.sh-hint, .sh-note { margin: 0; font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; user-select: text; }
+.sh-note { color: var(--ok); }
+.sh-quote { margin: 0; padding: 8px 10px; border-left: 2px solid var(--takt-from); font-size: 12px; background: var(--field); border-radius: 0 6px 6px 0; }
+.sh-shapes { display: flex; gap: 2px; padding: 3px; margin-bottom: 6px; border-radius: 10px; background: var(--field); }
+.sh-shapes button { flex: 1; padding: 6px 4px; border: 0; background: transparent; color: var(--text-secondary); border-radius: 7px; }
+.sh-shapes button[aria-checked="true"] { background: var(--panel); color: var(--text-primary); box-shadow: 0 0 0 1px var(--border); }
+.sh-side button { padding: 9px 12px; }
+.sh-close { margin-top: auto; background: transparent; color: var(--text-secondary); }
 .st-empty { margin: 0; color: var(--text-secondary); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .st-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
 .st-list button { width: 100%; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 9px 12px; text-align: left; background: var(--field); border-color: transparent; }
