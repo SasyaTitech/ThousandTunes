@@ -2,13 +2,17 @@
 
 pub mod audio;
 pub mod autostart;
+pub mod coach;
 pub mod control;
+pub mod desktop;
 pub mod diagnostics;
 #[cfg(not(windows))]
 pub mod fullscreen_x11;
 pub mod monitor;
+pub mod practice;
 pub mod settings;
 pub mod shell;
+pub mod shortcuts;
 pub mod state;
 pub mod theme;
 pub mod tray;
@@ -281,6 +285,10 @@ pub fn run() {
     // running process and brings the widget back.
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if argv.iter().any(|a| a == "--practice") {
+                practice::report_error(app, practice::open(app));
+                return;
+            }
             if argv.iter().any(|a| a == DIAGNOSE_FLAG) {
                 diagnostics::save_report(app, false);
                 return;
@@ -309,6 +317,8 @@ pub fn run() {
     }
 
     builder
+        .manage(shortcuts::Runtime::default())
+        .plugin(shortcuts::plugin())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             get_appearance,
@@ -324,7 +334,19 @@ pub fn run() {
             cycle_sound,
             nudge_volume,
             preview_accent,
-            set_accent
+            set_accent,
+            practice::get_practice,
+            practice::save_practice_preset,
+            practice::delete_practice_preset,
+            practice::apply_practice_preset,
+            practice::set_practice_shortcuts,
+            desktop::set_main_controls,
+            desktop::get_output_devices,
+            coach::get_coach,
+            coach::get_input_devices,
+            coach::coach_start,
+            coach::coach_set_review_length,
+            coach::coach_stop
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -358,6 +380,9 @@ pub fn run() {
                     demo,
                     Arc::new(move |notice| match notice {
                         Notice::Beat(beat) => {
+                            if let Some(coach) = h.try_state::<Arc<coach::Runtime>>() {
+                                coach.beat(&beat);
+                            }
                             let _ = h.emit("beat", beat);
                         }
                         Notice::Status => control::output_changed(&h),
@@ -367,6 +392,7 @@ pub fn run() {
 
             let state = AppState::new(store.clone(), engine.clone());
             app.manage(state.clone());
+            app.manage(Arc::new(coach::Runtime::default()));
 
             // Before the tray menu, which lists the displays, and before any
             // placement. On Linux the layout can only be read from this thread,
@@ -374,18 +400,28 @@ pub fn run() {
             monitor::init(&handle);
 
             tray::setup(&handle)?;
+            let practice = store.get().practice;
+            if let Err(e) = shortcuts::configure(
+                &handle,
+                practice.shortcuts_enabled,
+                practice.shortcut_extra_shift,
+            ) {
+                tracing::warn!("global shortcuts unavailable: {e}");
+            }
             autostart::sync(&handle, store.get().autostart);
             update::watch(&handle);
 
-            window::apply_ex_styles(&handle);
-            window::reposition(&handle);
+            if !cfg!(feature = "practice-build") {
+                window::apply_ex_styles(&handle);
+                window::reposition(&handle);
+            }
 
             // Click through is applied by `show`. On Linux the request
             // aborts the process against a window that has never been
             // realised, and at this point the widget has not been shown yet.
             let settings = store.get();
             let force_show = std::env::args().any(|a| a == "--show");
-            if settings.widget.visible || force_show {
+            if !cfg!(feature = "practice-build") && (settings.widget.visible || force_show) {
                 window::show(&handle);
             }
 
@@ -398,7 +434,14 @@ pub fn run() {
                 });
             }
 
-            window::spawn_reconciler(handle.clone());
+            if cfg!(feature = "practice-build") {
+                desktop::open(&handle).map_err(std::io::Error::other)?;
+            } else {
+                window::spawn_reconciler(handle.clone());
+            }
+            if !cfg!(feature = "practice-build") && std::env::args().any(|a| a == "--practice") {
+                practice::report_error(&handle, practice::open(&handle));
+            }
 
             if demo || std::env::args().any(|a| a == TOGGLE_FLAG) {
                 engine.start();
@@ -430,6 +473,14 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == desktop::LABEL {
+                if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    settings::mark_stay_closed();
+                    state::begin_quit();
+                    window.app_handle().exit(0);
+                }
+                return;
+            }
             // The colour picker is an ordinary window: it moves and closes
             // like one, and none of this is about it.
             if window.label() != window::WIDGET_LABEL {
@@ -460,12 +511,20 @@ pub fn run() {
                 // toolkit with "cannot move state from Destroyed", which lands
                 // in the crash report as if something had gone wrong during an
                 // otherwise orderly shutdown.
-                let torn_down = session_ending() || window::widget(app).is_none();
+                let main_gone = if cfg!(feature = "practice-build") {
+                    app.get_webview_window(desktop::LABEL).is_none()
+                } else {
+                    window::widget(app).is_none()
+                };
+                let torn_down = session_ending() || main_gone;
                 if !state::is_quitting() && !torn_down {
                     api.prevent_exit();
                 }
             }
             tauri::RunEvent::Exit => {
+                if let Some(coach) = app.try_state::<Arc<coach::Runtime>>() {
+                    coach.shutdown();
+                }
                 if let Some(state) = app.try_state::<Arc<AppState>>() {
                     state.engine.shutdown();
                 }

@@ -19,6 +19,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
+tauri-plugin-global-shortcut = "=2.3.1"
 # Linux only knows how to replace an AppImage, so the menu entries that drive
 # this are hidden elsewhere. The plugin itself builds on both.
 tauri-plugin-updater = "2"
@@ -73,6 +74,7 @@ windows = { version = "0.62", features = [
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+practice-build = []
 
 [profile.release]
 opt-level = "s"

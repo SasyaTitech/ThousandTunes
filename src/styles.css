@@ -1,5 +1,41 @@
 @import "tailwindcss";
 
+html.td-practice-page, .td-practice-page body, .td-practice-page #root { background: var(--page); overflow: auto; }
+.td-practice { --practice-muted: color-mix(in srgb, var(--text-primary) 72%, var(--page)); max-width: 760px; padding: 24px; margin: auto; font-size: 13px; line-height: 1.5; }
+.td-practice h1 { font-size: 23px; font-weight: 650; margin: 0; }
+.td-practice h2 { font-size: 15px; font-weight: 650; margin: 0 0 10px; }
+.td-practice p { margin: 6px 0 14px; }
+.td-practice-header, .td-practice-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.td-practice-header p, .td-practice-note, .td-practice small { color: var(--practice-muted); }
+.td-practice section, .td-practice form { padding-top: 18px; margin-top: 16px; border-top: 1px solid var(--border); }
+.td-practice button { border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; background: var(--field); color: var(--text-primary); cursor: pointer; white-space: nowrap; }
+.td-practice button:hover:not(:disabled) { border-color: var(--takt-ink); }
+.td-practice button:disabled { opacity: .45; cursor: default; }
+.td-practice button.primary { background: var(--takt-from); color: white; }
+.td-practice :focus-visible { outline: 2px solid var(--takt-ink); outline-offset: 2px; }
+.td-practice fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.td-practice label { display: grid; gap: 5px; }
+.td-practice input:not([type="checkbox"]), .td-practice select { width: 100%; min-width: 0; box-sizing: border-box; color: var(--text-primary); background: var(--page); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; user-select: text; }
+.td-practice-fields { display: grid; grid-template-columns: 80px 85px minmax(0, 1fr); gap: 12px; margin: 12px 0; }
+.td-practice label.td-practice-check { display: flex; flex-direction: row; align-items: center; gap: 8px; margin: 10px 0; }
+.td-practice input[type="checkbox"] { accent-color: var(--takt-from); width: 15px; height: 15px; }
+.td-practice-form-actions { display: flex; gap: 8px; margin-top: 14px; }
+.td-practice-list { list-style: none; padding: 0; margin: 0; }
+.td-practice-list li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 6px 10px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; margin-top: 8px; }
+.td-practice-list li.selected { border-color: var(--takt-from); }
+.td-practice-slot { color: var(--takt-ink); font-weight: 650; }
+.td-practice-description { min-width: 0; display: grid; gap: 2px; }
+.td-practice-description strong { overflow-wrap: anywhere; font-weight: 600; }
+.td-practice-description span { color: var(--practice-muted); font-size: 12px; }
+.td-practice-actions { grid-column: 2; display: flex; gap: 6px; }
+.td-practice .td-practice-error { color: var(--danger); overflow-wrap: anywhere; user-select: text; }
+.td-practice-message { color: var(--takt-ink); min-height: 0; }
+.td-practice-message:empty { display: none; }
+.td-practice dl { display: grid; grid-template-columns: 1fr auto; gap: 7px 12px; margin: 14px 0; }
+.td-practice dd { margin: 0; }
+.td-practice kbd { font-family: inherit; font-size: 12px; color: var(--practice-muted); }
+@media (max-width: 470px) { .td-practice { padding: 16px; } .td-practice dl { grid-template-columns: 1fr; gap: 2px; } .td-practice dd { margin-bottom: 6px; } }
+
 /* Colour tokens. Components never carry a literal colour; everything reads
    from here so the two themes stay in step. The root element carries
    data-theme, resolved on the Rust side from the Windows app theme. */

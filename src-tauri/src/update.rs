@@ -44,6 +44,9 @@ pub fn installing() -> bool {
 /// the tray has no business asking for. Where the answer is no, the menu says
 /// nothing about updates at all rather than offering something that fails.
 pub fn self_updatable() -> bool {
+    if cfg!(feature = "practice-build") {
+        return false;
+    }
     if cfg!(windows) {
         return true;
     }
@@ -53,6 +56,9 @@ pub fn self_updatable() -> bool {
 /// Starts the background check loop. Honours the setting on every pass rather
 /// than only at startup, so turning it off takes effect without a restart.
 pub fn watch(app: &AppHandle) {
+    if cfg!(feature = "practice-build") {
+        return;
+    }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(FIRST_CHECK_DELAY_SECS)).await;
@@ -74,6 +80,9 @@ fn enabled(app: &AppHandle) -> bool {
 /// Asks once and records the answer. Quiet on failure: no network is a normal
 /// state for a machine, not something to interrupt anybody about.
 pub async fn check(app: &AppHandle) -> Option<String> {
+    if cfg!(feature = "practice-build") {
+        return None;
+    }
     use tauri_plugin_updater::UpdaterExt;
 
     let updater = app.updater().ok()?;

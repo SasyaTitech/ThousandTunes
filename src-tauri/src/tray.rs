@@ -74,7 +74,13 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             } = event
             {
                 match button {
-                    MouseButton::Left => window::toggle_visibility(tray.app_handle()),
+                    MouseButton::Left => {
+                        if cfg!(feature = "practice-build") {
+                            window::show_by_request(tray.app_handle());
+                        } else {
+                            window::toggle_visibility(tray.app_handle());
+                        }
+                    }
                     // Play and stop without opening anything, for when the
                     // widget is hidden or behind a game on another screen.
                     MouseButton::Middle => {
@@ -171,6 +177,15 @@ fn menu_signature(app: &AppHandle) -> String {
         status.problem,
         status.devices,
     );
+    sig.push_str(&format!(
+        "|{:?}|{:?}",
+        s.practice,
+        s.practice
+            .presets
+            .iter()
+            .find(|p| p.matches(m))
+            .map(|p| p.id)
+    ));
     sig.push_str(&format!(
         "|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
         s.widget.visible,
@@ -283,6 +298,43 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let m = &s.metronome;
     let status = state.engine.status();
     let running = state.engine.is_running();
+
+    if cfg!(feature = "practice-build") {
+        return MenuBuilder::new(app)
+            .item(&MenuItemBuilder::with_id("practice:manage", "Open TaktDock").build(app)?)
+            .item(
+                &MenuItemBuilder::with_id("play", if running { "Stop" } else { "Play" })
+                    .build(app)?,
+            )
+            .separator()
+            .item(&MenuItemBuilder::with_id("diag:report", "Save diagnostic report").build(app)?)
+            .item(&MenuItemBuilder::with_id("exit", "Exit").build(app)?)
+            .build();
+    }
+
+    let mut practice = SubmenuBuilder::new(app, "Practice presets");
+    for (i, p) in s.practice.presets.iter().enumerate() {
+        practice = practice.item(&radio(
+            app,
+            format!("practice:{}", p.id),
+            format!(
+                "{}. {} ({} BPM, {}/{})",
+                i + 1,
+                p.name.replace('&', "&&"),
+                p.bpm,
+                p.beats_per_bar,
+                p.beat_unit
+            ),
+            s.practice.selected_id == Some(p.id) && p.matches(m),
+        )?);
+    }
+    let practice = practice
+        .separator()
+        .item(
+            &MenuItemBuilder::with_id("practice:manage", "Manage presets and shortcuts...")
+                .build(app)?,
+        )
+        .build()?;
 
     let header =
         MenuItemBuilder::with_id("header", format!("TaktDock {}", env!("CARGO_PKG_VERSION")))
@@ -507,6 +559,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .separator()
         .item(&play)
         .item(&tempo)
+        .item(&practice)
         .item(&meter)
         .item(&sub)
         .item(&sound)
@@ -629,6 +682,10 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
             window::open_accent_picker(app);
             needs_rebuild = false;
         }
+        "practice:manage" => {
+            crate::practice::report_error(app, crate::practice::open(app));
+            needs_rebuild = false;
+        }
         "animations" => {
             state
                 .settings
@@ -697,6 +754,10 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         }
         other => {
             needs_rebuild = false;
+            if let Some(id) = other.strip_prefix("practice:").and_then(|v| v.parse().ok()) {
+                crate::practice::report_error(app, crate::practice::apply(app, id));
+                return;
+            }
             if let Some(bpm) = other.strip_prefix("tempo:").and_then(|v| v.parse().ok()) {
                 control::set_tempo(app, bpm);
             } else if let Some((beats, unit)) = other

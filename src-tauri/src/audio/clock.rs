@@ -76,6 +76,7 @@ pub struct Clock {
     /// Meter and grid in force for the bar and beat under way.
     beats_per_bar: u8,
     subdivision: u8,
+    accent_first: bool,
     /// Counters for the next click.
     bar: u32,
     beat: u8,
@@ -94,6 +95,7 @@ impl Clock {
             period_sub: p.subdivision,
             beats_per_bar: p.beats_per_bar,
             subdivision: p.subdivision,
+            accent_first: p.accent_first,
             bar: 0,
             beat: 0,
             sub: 0,
@@ -112,6 +114,7 @@ impl Clock {
         self.period_sub = p.subdivision.max(1);
         self.subdivision = self.period_sub;
         self.beats_per_bar = p.beats_per_bar.max(1);
+        self.accent_first = p.accent_first;
         self.bar = 0;
         self.beat = 0;
         self.sub = 0;
@@ -134,6 +137,18 @@ impl Clock {
     /// starts inside it. Allocates nothing and takes no lock; `emit` is where
     /// the caller starts a voice.
     pub fn advance(&mut self, frames: usize, p: Params, mut emit: impl FnMut(Tick)) {
+        self.advance_quantised(frames, p, false, &mut emit);
+    }
+
+    /// A practice preset is adopted as one set at the next downbeat. The
+    /// already scheduled downbeat retains its exact sample position.
+    pub fn advance_quantised(
+        &mut self,
+        frames: usize,
+        requested: Params,
+        at_bar: bool,
+        mut emit: impl FnMut(Tick),
+    ) {
         let end = self.position + frames as u64;
         loop {
             let exact = self.next_exact();
@@ -141,7 +156,18 @@ impl Clock {
             if at >= end {
                 break;
             }
+            let p = if at_bar && (self.beat != 0 || self.sub != 0) {
+                Params {
+                    bpm: self.period_bpm,
+                    beats_per_bar: self.beats_per_bar,
+                    subdivision: self.subdivision,
+                    accent_first: self.accent_first,
+                }
+            } else {
+                requested
+            };
             self.adopt(exact, p);
+            self.accent_first = p.accent_first;
             let kind = if self.sub > 0 {
                 Kind::Sub
             } else if self.beat == 0 && p.accent_first {
@@ -209,6 +235,101 @@ impl Clock {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_tempo_and_grid_stays_on_the_sample_grid() {
+        for rate in [44_100, 48_000, 96_000] {
+            for bpm in 30..=300 {
+                for subdivision in 1..=4 {
+                    let p = Params {
+                        bpm,
+                        subdivision,
+                        ..Default::default()
+                    };
+                    let period = rate as f64 * 60.0 / (bpm as f64 * subdivision as f64);
+                    let mut c = started(rate, p);
+                    let mut count = 0;
+                    c.advance((period * 1000.0).round() as usize, p, |t| {
+                        assert_eq!(t.at, (count as f64 * period).round() as u64);
+                        count += 1;
+                    });
+                    assert_eq!(count, 1000, "{rate} Hz, {bpm} BPM, grid {subdivision}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_preset_changes_all_parameters_on_the_same_downbeat_without_drift() {
+        let old = Params {
+            bpm: 97,
+            beats_per_bar: 4,
+            subdivision: 3,
+            accent_first: true,
+        };
+        let new = Params {
+            bpm: 133,
+            beats_per_bar: 3,
+            subdivision: 4,
+            accent_first: false,
+        };
+        for rate in [44_100, 48_000, 96_000] {
+            let old_period = rate as f64 * 60.0 / (97.0 * 3.0);
+            let boundary = old_period * 12.0;
+            let new_period = rate as f64 * 60.0 / (133.0 * 4.0);
+            for block in [127, 1024, 8192] {
+                let mut c = started(rate, old);
+                let mut ticks = Vec::new();
+                // Request the preset in the middle of the first beat.
+                let before = (old_period * 1.4) as usize;
+                c.advance(before, old, |t| ticks.push(t));
+                while ticks.len() < 4012 {
+                    c.advance_quantised(block, new, true, |t| ticks.push(t));
+                }
+                for (i, t) in ticks.iter().enumerate() {
+                    if i < 12 {
+                        assert_eq!(t.at, (i as f64 * old_period).round() as u64);
+                        assert_eq!((t.bpm, t.beats_per_bar, t.subdivision), (97, 4, 3));
+                    } else {
+                        let n = i - 12;
+                        assert_eq!(t.at, (boundary + n as f64 * new_period).round() as u64);
+                        assert_eq!((t.bpm, t.beats_per_bar, t.subdivision), (133, 3, 4));
+                        assert_eq!(t.beat as usize, (n / 4) % 3);
+                        assert_ne!(t.kind, Kind::Accent);
+                    }
+                }
+                assert_eq!((ticks[12].bar, ticks[12].beat, ticks[12].sub), (1, 0, 0));
+            }
+        }
+    }
+
+    #[test]
+    fn the_latest_preset_wins_and_restart_adopts_it_immediately() {
+        let old = Params::default();
+        let first = Params { bpm: 60, ..old };
+        let last = Params {
+            bpm: 300,
+            beats_per_bar: 7,
+            subdivision: 4,
+            ..old
+        };
+        let mut c = started(48_000, old);
+        c.advance(100, old, |_| {});
+        c.advance_quantised(100, first, true, |_| {});
+        let mut ticks = Vec::new();
+        c.advance_quantised(100_000, last, true, |t| ticks.push(t));
+        assert!(ticks.iter().all(|t| t.bpm != 60));
+        let downbeat = ticks.iter().find(|t| t.bar == 1).unwrap();
+        assert_eq!(downbeat.at, 96_000);
+        assert_eq!(
+            (downbeat.bpm, downbeat.beats_per_bar, downbeat.subdivision),
+            (300, 7, 4)
+        );
+        c.start(first);
+        c.advance_quantised(1, first, true, |t| {
+            assert_eq!((t.offset, t.beat, t.sub, t.bpm), (0, 0, 0, 60));
+        });
+    }
 
     fn collect(clock: &mut Clock, total: usize, block: usize, p: Params) -> Vec<Tick> {
         let mut out = Vec::new();

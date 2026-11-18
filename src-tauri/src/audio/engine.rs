@@ -64,6 +64,10 @@ pub struct BeatEvent {
     /// reports plus the click's offset into the block. The interface lines its
     /// animation up with this rather than with the moment the event arrives.
     pub at_ms: f64,
+    /// Native host clock, shared by WASAPI capture and playback. Never wall time.
+    pub audio_ms: f64,
+    /// Identifies a restart or output reconnection.
+    pub generation: u32,
 }
 
 /// What the tray and the diagnostics report need to know about the output.
@@ -152,10 +156,8 @@ struct Shared {
     /// Bumped on every start. The callback restarts the pattern when it sees
     /// a new value, which is how play always opens on a downbeat.
     generation: AtomicU32,
-    bpm: AtomicU32,
-    beats_per_bar: AtomicU8,
-    subdivision: AtomicU8,
-    accent: AtomicBool,
+    // One atomic snapshot prevents the audio thread observing half a preset.
+    timing: AtomicU64,
     sound: AtomicU8,
     volume: AtomicU8,
     ring: BeatRing,
@@ -164,28 +166,52 @@ struct Shared {
 }
 
 impl Shared {
-    fn params(&self) -> Params {
-        Params {
-            bpm: self.bpm.load(Ordering::Relaxed),
-            beats_per_bar: self.beats_per_bar.load(Ordering::Relaxed),
-            subdivision: self.subdivision.load(Ordering::Relaxed),
-            accent_first: self.accent.load(Ordering::Relaxed),
-        }
-    }
-
     fn store(&self, m: &MetronomeSettings) {
-        self.bpm.store(m.bpm, Ordering::Relaxed);
-        self.beats_per_bar.store(m.beats_per_bar, Ordering::Relaxed);
-        self.subdivision.store(m.subdivision, Ordering::Relaxed);
-        self.accent.store(m.accent_first, Ordering::Relaxed);
+        let next = pack_timing(m, false);
+        // Volume and sound changes must not pull a queued preset forward.
+        let mut old = self.timing.load(Ordering::Relaxed);
+        while old & !AT_BAR != next {
+            match self
+                .timing
+                .compare_exchange_weak(old, next, Ordering::Relaxed, Ordering::Relaxed)
+            {
+                Ok(_) => break,
+                Err(actual) => old = actual,
+            }
+        }
         self.sound
             .store(Sound::from_name(&m.sound).index(), Ordering::Relaxed);
         self.volume.store(m.volume, Ordering::Relaxed);
     }
 }
 
+const AT_BAR: u64 = 1 << 49;
+
+fn pack_timing(m: &MetronomeSettings, at_bar: bool) -> u64 {
+    m.bpm as u64
+        | (m.beats_per_bar as u64) << 32
+        | (m.subdivision as u64) << 40
+        | (m.accent_first as u64) << 48
+        | if at_bar { AT_BAR } else { 0 }
+}
+
+fn unpack_timing(value: u64) -> (Params, bool) {
+    (
+        Params {
+            bpm: value as u32,
+            beats_per_bar: (value >> 32) as u8,
+            subdivision: (value >> 40) as u8,
+            accent_first: value & (1 << 48) != 0,
+        },
+        value & AT_BAR != 0,
+    )
+}
+
 pub struct Engine {
     shared: Arc<Shared>,
+    /// UI intent is immediate; the render flag is set only after the stream
+    /// is ready, so opening a device cannot produce a premature first click.
+    requested_running: AtomicBool,
     tx: Mutex<mpsc::Sender<Cmd>>,
     status: Arc<RwLock<Status>>,
     wanted_device: Mutex<Option<String>>,
@@ -198,10 +224,7 @@ impl Engine {
         let shared = Arc::new(Shared {
             running: AtomicBool::new(false),
             generation: AtomicU32::new(0),
-            bpm: AtomicU32::new(settings.bpm),
-            beats_per_bar: AtomicU8::new(settings.beats_per_bar),
-            subdivision: AtomicU8::new(settings.subdivision),
-            accent: AtomicBool::new(settings.accent_first),
+            timing: AtomicU64::new(pack_timing(settings, false)),
             sound: AtomicU8::new(Sound::from_name(&settings.sound).index()),
             volume: AtomicU8::new(settings.volume),
             ring: BeatRing::new(),
@@ -249,6 +272,7 @@ impl Engine {
 
         Arc::new(Self {
             shared,
+            requested_running: AtomicBool::new(false),
             tx: Mutex::new(tx),
             status,
             wanted_device: Mutex::new(settings.output_device.clone()),
@@ -256,16 +280,22 @@ impl Engine {
         })
     }
 
+    pub fn generation(&self) -> u32 {
+        self.shared.generation.load(Ordering::SeqCst)
+    }
+
     pub fn is_running(&self) -> bool {
-        self.shared.running.load(Ordering::SeqCst)
+        self.requested_running.load(Ordering::SeqCst)
     }
 
     pub fn start(&self) {
+        self.requested_running.store(true, Ordering::SeqCst);
         self.send(Cmd::Start);
         self.beat_thread.unpark();
     }
 
     pub fn stop(&self) {
+        self.requested_running.store(false, Ordering::SeqCst);
         // Cleared here as well as on the control thread, so the callback stops
         // scheduling clicks the moment stop is pressed rather than when the
         // command is picked up.
@@ -293,6 +323,13 @@ impl Engine {
             *wanted = m.output_device.clone();
             self.send(Cmd::SetDevice(m.output_device.clone()));
         }
+    }
+
+    /// No device reopen, restart, locks or file access on the render thread.
+    pub fn apply_preset(&self, m: &MetronomeSettings) {
+        self.shared
+            .timing
+            .store(pack_timing(m, true), Ordering::Relaxed);
     }
 
     pub fn status(&self) -> Status {
@@ -327,6 +364,7 @@ impl Engine {
     }
 
     pub fn shutdown(&self) {
+        self.requested_running.store(false, Ordering::SeqCst);
         self.shared.running.store(false, Ordering::SeqCst);
         self.shared.shutdown.store(true, Ordering::SeqCst);
         self.send(Cmd::Shutdown);
@@ -714,6 +752,7 @@ impl Control {
                 .latency_ns
                 .store(latency.as_nanos() as u64, Ordering::Relaxed);
 
+            renderer.audio_ms = playback_ns as f64 / 1_000_000.;
             renderer.process(
                 frames,
                 wall_ms() + latency.as_secs_f64() * 1000.0,
@@ -783,6 +822,7 @@ const IDLE: Voice = Voice {
 /// Clock plus voices: everything the render callback does, shared with the
 /// silent driver so both keep the same time.
 struct Renderer {
+    audio_ms: f64,
     clock: Clock,
     banks: [Bank; Sound::ALL.len()],
     voices: [Voice; MAX_VOICES],
@@ -793,6 +833,7 @@ struct Renderer {
 impl Renderer {
     fn new(rate: u32, shared: Arc<Shared>) -> Self {
         Self {
+            audio_ms: 0.,
             clock: Clock::new(rate),
             banks: Sound::ALL.map(|s| Bank::render(s, rate)),
             voices: [IDLE; MAX_VOICES],
@@ -807,7 +848,7 @@ impl Renderer {
     fn process(&mut self, frames: usize, playback_ms: f64, mut write: impl FnMut(usize, f32)) {
         let shared = &self.shared;
         let generation = shared.generation.load(Ordering::SeqCst);
-        let params = shared.params();
+        let (params, at_bar) = unpack_timing(shared.timing.load(Ordering::Relaxed));
         if generation != self.seen_generation {
             self.seen_generation = generation;
             self.clock.start(params);
@@ -818,23 +859,26 @@ impl Renderer {
             let rate = self.clock.rate() as f64;
             let voices = &mut self.voices;
             let ring = &shared.ring;
-            self.clock.advance(frames, params, |t: Tick| {
-                start_voice(voices, bank, t.kind, t.offset);
-                ring.push(&BeatEvent {
-                    bar: t.bar,
-                    beat: t.beat,
-                    sub: t.sub,
-                    kind: match t.kind {
-                        Kind::Accent => "accent",
-                        Kind::Beat => "beat",
-                        Kind::Sub => "sub",
-                    },
-                    beats_per_bar: t.beats_per_bar,
-                    subdivision: t.subdivision,
-                    bpm: t.bpm,
-                    at_ms: playback_ms + t.offset as f64 * 1000.0 / rate,
+            self.clock
+                .advance_quantised(frames, params, at_bar, |t: Tick| {
+                    start_voice(voices, bank, t.kind, t.offset);
+                    ring.push(&BeatEvent {
+                        bar: t.bar,
+                        beat: t.beat,
+                        sub: t.sub,
+                        kind: match t.kind {
+                            Kind::Accent => "accent",
+                            Kind::Beat => "beat",
+                            Kind::Sub => "sub",
+                        },
+                        beats_per_bar: t.beats_per_bar,
+                        subdivision: t.subdivision,
+                        bpm: t.bpm,
+                        at_ms: playback_ms + t.offset as f64 * 1000.0 / rate,
+                        audio_ms: self.audio_ms + t.offset as f64 * 1000.0 / rate,
+                        generation,
+                    });
                 });
-            });
         }
 
         let gain = voice::gain(shared.volume.load(Ordering::Relaxed));
@@ -981,6 +1025,8 @@ struct BeatRing {
     tail: AtomicUsize,
     shape: [AtomicU64; RING],
     at: [AtomicU64; RING],
+    audio: [AtomicU64; RING],
+    generation: [AtomicU32; RING],
     tempo: [AtomicU64; RING],
 }
 
@@ -991,6 +1037,8 @@ impl BeatRing {
             tail: AtomicUsize::new(0),
             shape: [const { AtomicU64::new(0) }; RING],
             at: [const { AtomicU64::new(0) }; RING],
+            audio: [const { AtomicU64::new(0) }; RING],
+            generation: [const { AtomicU32::new(0) }; RING],
             tempo: [const { AtomicU64::new(0) }; RING],
         }
     }
@@ -1014,6 +1062,8 @@ impl BeatRing {
             | (e.beats_per_bar as u64) << 56;
         self.shape[i].store(shape, Ordering::Relaxed);
         self.at[i].store(e.at_ms.to_bits(), Ordering::Relaxed);
+        self.audio[i].store(e.audio_ms.to_bits(), Ordering::Relaxed);
+        self.generation[i].store(e.generation, Ordering::Relaxed);
         self.tempo[i].store(
             e.bpm as u64 | (e.subdivision as u64) << 32,
             Ordering::Relaxed,
@@ -1031,6 +1081,8 @@ impl BeatRing {
         let i = tail % RING;
         let shape = self.shape[i].load(Ordering::Relaxed);
         let at = f64::from_bits(self.at[i].load(Ordering::Relaxed));
+        let audio_ms = f64::from_bits(self.audio[i].load(Ordering::Relaxed));
+        let generation = self.generation[i].load(Ordering::Relaxed);
         let tempo = self.tempo[i].load(Ordering::Relaxed);
         self.tail.store(tail.wrapping_add(1), Ordering::Release);
         Some(BeatEvent {
@@ -1046,6 +1098,8 @@ impl BeatRing {
             subdivision: (tempo >> 32) as u8,
             bpm: tempo as u32,
             at_ms: at,
+            audio_ms,
+            generation,
         })
     }
 }
@@ -1053,6 +1107,92 @@ impl BeatRing {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn transport_tracks_requests_while_the_device_thread_catches_up() {
+        let engine = Engine::new(&MetronomeSettings::default(), true, Arc::new(|_| {}));
+        engine.start();
+        assert!(engine.is_running());
+        assert!(!engine.toggle());
+        assert!(!engine.is_running());
+        assert!(engine.toggle());
+        engine.stop();
+        assert!(!engine.is_running());
+        engine.shutdown();
+    }
+
+    #[test]
+    fn preset_snapshot_is_coherent_and_volume_does_not_cancel_quantisation() {
+        let s = shared(120);
+        let preset = MetronomeSettings {
+            bpm: 97,
+            beats_per_bar: 7,
+            beat_unit: 8,
+            subdivision: 3,
+            accent_first: false,
+            ..Default::default()
+        };
+        s.timing
+            .store(pack_timing(&preset, true), Ordering::Relaxed);
+        s.store(&MetronomeSettings {
+            volume: 25,
+            ..preset.clone()
+        });
+        let (p, at_bar) = unpack_timing(s.timing.load(Ordering::Relaxed));
+        assert!(at_bar);
+        assert_eq!(
+            p,
+            Params {
+                bpm: 97,
+                beats_per_bar: 7,
+                subdivision: 3,
+                accent_first: false
+            }
+        );
+        s.store(&MetronomeSettings { bpm: 98, ..preset });
+        assert!(!unpack_timing(s.timing.load(Ordering::Relaxed)).1);
+    }
+
+    #[test]
+    fn rendered_preset_switch_is_independent_of_callback_size() {
+        fn render(block: usize) -> Vec<f32> {
+            let shared = shared(97);
+            let mut renderer = Renderer::new(48_000, shared.clone());
+            play(&shared);
+            let mut out = Vec::new();
+            for end in [20_000, 320_000] {
+                while out.len() < end {
+                    let frames = block.min(end - out.len());
+                    renderer.process(frames, 0.0, |_, v| out.push(v));
+                    while shared.ring.pop().is_some() {}
+                }
+                shared.timing.store(
+                    pack_timing(
+                        &MetronomeSettings {
+                            bpm: 300,
+                            beats_per_bar: 3,
+                            subdivision: 4,
+                            ..Default::default()
+                        },
+                        true,
+                    ),
+                    Ordering::Relaxed,
+                );
+            }
+            out
+        }
+        let reference = render(127);
+        for block in [441, 1024, 4096] {
+            let other = render(block);
+            assert!(
+                reference
+                    .iter()
+                    .zip(other)
+                    .all(|(a, b)| (a - b).abs() < 1e-6),
+                "callback size {block} changed the audible waveform"
+            );
+        }
+    }
 
     fn shared(bpm: u32) -> Arc<Shared> {
         let s = MetronomeSettings {
@@ -1062,10 +1202,7 @@ mod tests {
         let shared = Arc::new(Shared {
             running: AtomicBool::new(false),
             generation: AtomicU32::new(0),
-            bpm: AtomicU32::new(0),
-            beats_per_bar: AtomicU8::new(0),
-            subdivision: AtomicU8::new(0),
-            accent: AtomicBool::new(false),
+            timing: AtomicU64::new(0),
             sound: AtomicU8::new(0),
             volume: AtomicU8::new(0),
             ring: BeatRing::new(),
@@ -1093,6 +1230,8 @@ mod tests {
             subdivision: 4,
             bpm: 300,
             at_ms: 1_757_000_000_123.25,
+            audio_ms: 1234567.25,
+            generation: 1234,
         };
         assert!(ring.push(&e));
         assert_eq!(ring.pop(), Some(e));
@@ -1111,6 +1250,8 @@ mod tests {
             subdivision: 1,
             bpm: 120,
             at_ms: 0.0,
+            audio_ms: 0.,
+            generation: 0,
         };
         for _ in 0..RING {
             assert!(ring.push(&e));
@@ -1186,7 +1327,11 @@ mod tests {
     #[test]
     fn the_fastest_grid_never_clips() {
         let shared = shared(300);
-        shared.subdivision.store(4, Ordering::Relaxed);
+        shared.store(&MetronomeSettings {
+            bpm: 300,
+            subdivision: 4,
+            ..Default::default()
+        });
         shared.volume.store(100, Ordering::Relaxed);
         for sound in 0..Sound::ALL.len() as u8 {
             shared.sound.store(sound, Ordering::Relaxed);
@@ -1297,5 +1442,66 @@ mod tests {
             .as_deref()
             .is_some_and(|p| p.contains("not found")));
         engine.shutdown();
+    }
+
+    /// Optional hardware smoke test. Select a specific endpoint with
+    /// TAKTDOCK_TEST_OUTPUT; never changes the installed app's preferences.
+    #[test]
+    #[ignore]
+    fn live_output_preset_switch_preserves_the_stream() {
+        let settings = MetronomeSettings {
+            bpm: 240,
+            volume: 0,
+            output_device: std::env::var("TAKTDOCK_TEST_OUTPUT").ok(),
+            ..Default::default()
+        };
+        let beats = Arc::new(Mutex::new(Vec::<BeatEvent>::new()));
+        let seen = beats.clone();
+        let engine = Engine::new(
+            &settings,
+            false,
+            Arc::new(move |notice| {
+                if let Notice::Beat(b) = notice {
+                    seen.lock().push(b);
+                }
+            }),
+        );
+        engine.start();
+        std::thread::sleep(Duration::from_millis(650));
+        let initial = engine.status();
+        let before = engine.stats().callbacks;
+        engine.apply_preset(&MetronomeSettings {
+            bpm: 133,
+            beats_per_bar: 3,
+            subdivision: 3,
+            ..settings.clone()
+        });
+        std::thread::sleep(Duration::from_millis(3000));
+        let status = engine.status();
+        let stats = engine.stats();
+        engine.shutdown();
+        println!("preset hardware test: {status:?}\n{stats:?}");
+        assert!(status.active_device.is_some() && !status.silent);
+        assert_eq!(initial.active_device, status.active_device);
+        if let Some(wanted) = settings.output_device {
+            assert_eq!(status.active_device, Some(wanted));
+        }
+        assert!(before > 0 && stats.callbacks > before);
+        assert_eq!(stats.xruns, 0, "the driver reported a buffer underrun");
+        let beats = beats.lock();
+        let switched = beats
+            .iter()
+            .find(|b| b.bpm == 133)
+            .expect("preset reached the audio thread");
+        assert_eq!(
+            (
+                switched.beat,
+                switched.sub,
+                switched.beats_per_bar,
+                switched.subdivision
+            ),
+            (0, 0, 3, 3)
+        );
+        assert!(switched.bar > 0, "preset must not restart the bar counter");
     }
 }

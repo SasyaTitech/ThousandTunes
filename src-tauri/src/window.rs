@@ -369,6 +369,10 @@ fn finalize_move(app: &AppHandle) {
 /// app that comes back mid game, through the watchdog for example, has to stay
 /// out of the way.
 pub fn show_by_request(app: &AppHandle) {
+    if cfg!(feature = "practice-build") {
+        crate::practice::report_error(app, crate::desktop::open(app));
+        return;
+    }
     SHOWN_ON_PURPOSE.store(true, Ordering::SeqCst);
     show(app);
 }

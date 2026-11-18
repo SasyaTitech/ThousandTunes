@@ -259,6 +259,10 @@ pub struct Settings {
     #[serde(default)]
     pub metronome: MetronomeSettings,
     #[serde(default)]
+    pub practice: crate::practice::PracticeSettings,
+    #[serde(default)]
+    pub coach: crate::coach::Config,
+    #[serde(default)]
     pub widget: WidgetSettings,
     #[serde(default)]
     pub appearance: AppearanceSettings,
@@ -273,6 +277,8 @@ impl Default for Settings {
         Self {
             schema_version: SCHEMA_VERSION,
             metronome: Default::default(),
+            practice: Default::default(),
+            coach: Default::default(),
             widget: Default::default(),
             appearance: Default::default(),
             updates: Default::default(),
@@ -292,6 +298,7 @@ fn migrate(mut s: Settings) -> Settings {
         s.schema_version = SCHEMA_VERSION;
     }
     s.metronome = s.metronome.sanitised();
+    s.practice.sanitise();
     s.appearance.accent = s.appearance.accent.as_deref().and_then(normalise_accent);
     s
 }
@@ -307,7 +314,11 @@ pub fn data_dir() -> PathBuf {
         return PathBuf::from(dir);
     }
     let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-    base.join("TaktDock")
+    base.join(if cfg!(feature = "practice-build") {
+        "TaktDock-Practice"
+    } else {
+        "TaktDock"
+    })
 }
 
 pub fn settings_path() -> PathBuf {
@@ -401,6 +412,25 @@ impl SettingsStore {
         self.inner.read().clone()
     }
 
+    /// Commit a user-edited preset only after it is safely on disk. The lock
+    /// serialises writers; an error leaves the in-memory settings untouched.
+    pub fn try_update(
+        &self,
+        f: impl FnOnce(&mut Settings) -> Result<(), String>,
+    ) -> Result<Settings, String> {
+        let mut guard = self.inner.write();
+        let mut next = guard.clone();
+        f(&mut next)?;
+        next = migrate(next);
+        if let Some(dir) = self.path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        let json = serde_json::to_vec_pretty(&next).map_err(|e| e.to_string())?;
+        write_atomic(&self.path, &json).map_err(|e| e.to_string())?;
+        *guard = next.clone();
+        Ok(next)
+    }
+
     pub fn update<F: FnOnce(&mut Settings)>(&self, f: F) -> Settings {
         let snapshot = {
             let mut guard = self.inner.write();
@@ -426,8 +456,11 @@ impl SettingsStore {
             .map(|p| p.to_path_buf())
             .unwrap_or_else(|| PathBuf::from("."));
         std::fs::create_dir_all(&dir)?;
-        let json = serde_json::to_string_pretty(&*self.inner.read())?;
-        write_atomic(&self.path, json.as_bytes())
+        let guard = self.inner.read();
+        let json = serde_json::to_string_pretty(&*guard)?;
+        let result = write_atomic(&self.path, json.as_bytes());
+        drop(guard);
+        result
     }
 }
 
@@ -573,6 +606,26 @@ mod tests {
         assert!(back.autostart);
         assert!(!path.with_extension("tmp").exists());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_failed_preset_write_leaves_the_previous_settings_intact() {
+        let blocker =
+            std::env::temp_dir().join(format!("taktdock-store-blocker-{}", std::process::id()));
+        std::fs::write(&blocker, b"not a directory").unwrap();
+        let store = SettingsStore {
+            inner: RwLock::new(Settings::default()),
+            path: blocker.join("settings.json"),
+        };
+        let result = store.try_update(|s| {
+            s.metronome.bpm = 97;
+            s.practice.shortcuts_enabled = true;
+            Ok(())
+        });
+        assert!(result.is_err());
+        assert_eq!(store.get().metronome.bpm, 120);
+        assert!(!store.get().practice.shortcuts_enabled);
+        std::fs::remove_file(blocker).unwrap();
     }
 
     #[test]

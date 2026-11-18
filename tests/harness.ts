@@ -11,8 +11,11 @@ import { expect, type Page } from "@playwright/test";
 export async function installTauriMock(page: Page) {
   await page.addInitScript(() => {
     const callbacks: Record<number, (arg: unknown) => void> = {};
-    const listeners: Record<string, number> = {};
+    const listeners: Record<string, number[]> = {};
     let counter = 0;
+    (window as any).__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+      unregisterListener(event: string, id: number) { listeners[event] = (listeners[event] ?? []).filter(v => v !== id); },
+    };
 
     (window as any).__TD = {
       appearance: {
@@ -39,9 +42,16 @@ export async function installTauriMock(page: Page) {
         device_problem: null,
       },
       calls: [] as Array<{ cmd: string; args: unknown }>,
+      practice: { presets: [] as any[], selected_id: null, shortcuts_enabled: false, shortcut_extra_shift: false, shortcuts_active: false, shortcut_error: null },
+      failCommand: null,
+      coach: {
+        config: { input_id: "", channel: 0, notes_per_beat: 1, gate_db: -45, length: 32, review_length: 32 },
+        status: { active: false, mode: "idle", message: "选择吉他输入，先检查拨弦能否被识别。", level_db: -90, clipped: false, attacks: 0, clock_ms: 10000, start_ms: null, interval_ms: 500, length: 32, calibrated: false, offset_ms: 0, calibration_jitter_ms: 0, results: [], recent_extras: [], summary: { played: 0, on_time: 0, missed: 0, extra: 0, uncertain: 0, mean_ms: 0, spread_ms: 0 } },
+      },
       emit(event: string, payload: unknown) {
-        const id = listeners[event];
-        if (id && callbacks[id]) callbacks[id]({ event, id, payload });
+        for (const id of listeners[event] ?? []) {
+          if (callbacks[id]) callbacks[id]({ event, id, payload });
+        }
       },
     };
 
@@ -58,11 +68,64 @@ export async function installTauriMock(page: Page) {
       invoke(cmd: string, args: any) {
         const td = (window as any).__TD;
         td.calls.push({ cmd, args });
+        if (td.failCommand === cmd) return Promise.reject("Test error: action could not be completed.");
         switch (cmd) {
+          case "get_practice": return Promise.resolve(structuredClone(td.practice));
+          case "save_practice_preset": {
+            const p = { ...args.preset };
+            if (p.id) td.practice.presets = td.practice.presets.map((old: any) => old.id === p.id ? p : old);
+            else { p.id = Math.max(0, ...td.practice.presets.map((old: any) => old.id)) + 1; td.practice.presets.push(p); }
+            return Promise.resolve(structuredClone(td.practice));
+          }
+          case "delete_practice_preset":
+            td.practice.presets = td.practice.presets.filter((p: any) => p.id !== args.id);
+            return Promise.resolve(structuredClone(td.practice));
+          case "apply_practice_preset":
+            td.practice.selected_id = args.id;
+            {
+              const p = td.practice.presets.find((p: any) => p.id === args.id);
+              if (p) for (const key of ["bpm", "beats_per_bar", "beat_unit", "subdivision", "accent_first"]) td.transport[key] = p[key];
+              td.emit("transport", structuredClone(td.transport));
+            }
+            return Promise.resolve();
+          case "get_output_devices": return Promise.resolve(["GT-1000CORE", "Speakers"]);
+          case "get_coach": return Promise.resolve(structuredClone(td.coach));
+          case "get_input_devices": return Promise.resolve([{ id: "gt-dry", name: "GT-1000CORE DRY", channels: 2, sample_rate: 48000 }]);
+          case "coach_start":
+            td.coach.config = args.config;
+            td.coach.status = { ...td.coach.status, active: true, mode: args.mode, length: args.mode === "calibrate" ? 16 : args.config.length, results: [], recent_extras: [], message: args.mode === "monitor" ? "拨几下单音，检查电平和识别次数。" : "四拍预备 · 听节拍再开始", start_ms: args.mode === "monitor" ? null : 12000 };
+            td.emit("coach", structuredClone(td.coach.status));
+            return Promise.resolve();
+          case "coach_set_review_length":
+            td.coach.config.review_length = args.length;
+            return Promise.resolve();
+          case "coach_stop":
+            td.coach.status.active = false;
+            td.coach.status.message = "已结束。输入已释放；保留本轮结果。";
+            td.emit("coach", structuredClone(td.coach.status));
+            return Promise.resolve();
+          case "set_main_controls": {
+            const { meter, output_device, ...rest } = args.controls;
+            td.transport = { ...td.transport, ...rest };
+            if (meter) [td.transport.beats_per_bar, td.transport.beat_unit] = meter;
+            if (output_device !== undefined) td.transport.output_device = output_device || null;
+            td.emit("transport", structuredClone(td.transport));
+            return Promise.resolve(structuredClone(td.transport));
+          }
+          case "toggle_play":
+            td.transport.running = !td.transport.running;
+            td.emit("transport", structuredClone(td.transport));
+            return Promise.resolve(td.transport.running);
+          case "set_practice_shortcuts":
+            td.practice.shortcuts_enabled = args.enabled;
+            td.practice.shortcut_extra_shift = args.extraShift;
+            td.practice.shortcuts_active = args.enabled;
+            return Promise.resolve(structuredClone(td.practice));
           case "plugin:event|listen":
-            listeners[args.event] = args.handler;
-            return Promise.resolve(counter);
+            (listeners[args.event] ??= []).push(args.handler);
+            return Promise.resolve(args.handler);
           case "plugin:event|unlisten":
+            listeners[args.event] = (listeners[args.event] ?? []).filter(id => id !== args.eventId);
             return Promise.resolve();
           case "get_appearance":
             return Promise.resolve(td.appearance);

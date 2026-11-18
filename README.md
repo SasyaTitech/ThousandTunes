@@ -1,4 +1,79 @@
-# TaktDock: a metronome for the Windows taskbar
+# TaktDock Practice
+
+这是基于 [kalaylienes/taktdock](https://github.com/kalaylienes/taktdock) 的个人练习版，当前版本为 `1.0.0-practice.4`。
+
+- 常规可缩放窗口，练习预设和全局快捷键。
+- 单音跟拍：音游轨道、早／准／晚反馈、输入检查和回送延迟校准。
+- 无限练习或 32／64／128 音定长练习，支持最近 16／32／64／128 音的滚动回顾。
+- 未校准时早晚数值仅作参考；主要面向清晰拨弦的单音练习，不判断音高。
+
+Windows 构建需要 Node.js、Rust 和 Windows C++ Build Tools：
+
+```sh
+npm ci
+npm run app:practice
+```
+
+生成程序位于 `src-tauri/target/release/taktdock.exe`。测试使用 `npm test` 和 `npm run test:rust`。
+下方保留上游的说明及下载链接；上游发布的安装包不包含本分支的练习版功能。
+
+## Upstream project and practice edition details
+
+> **Local practice edition (`npm run app:practice`):** opens a normal, resizable
+> desktop window with tempo, play/stop, tap tempo, meter, subdivision, sound,
+> volume, audio output, presets and shortcuts in one place. It appears in the
+> taskbar and Alt+Tab. Minimise to keep playing; close to stop and exit. The
+> corner widget is not created in this build. The original widget edition
+> remains available through `npm run app:build` and is described below.
+
+## Rhythm coach (local practice edition, Windows)
+
+The **跟拍练习** tab practices one or two picked single notes per metronome
+beat, with a four-beat count-in, a scrolling target lane, early/on-time/late
+feedback, and either a 32/64/128-note session or continuous practice until
+manually stopped. Review the latest 16/32/64/128 target notes; the review range
+can change during or after practice without restarting the audio. Missed and
+unclear targets occupy a position, and extra attacks age out with their
+nearest target. The plot, counts and statistics all use the same window.
+Only the latest 128 target positions are retained, so continuous practice
+does not accumulate an unbounded history. Mean timing bias and timing
+spread (population standard deviation) are shown separately. The ±30 ms
+on-time band is a practice tolerance, not a universal musical standard.
+
+Select an input endpoint and mono channel explicitly, then use **检查输入**
+to check the meter and attack counter. Prefer the guitar interface's dry
+signal, without delay/reverb, and listen through headphones. There is no
+software input monitoring, recording to disk, upload, pitch or chord scoring.
+Legato, noisy/distorted signals, very soft notes and strongly ringing tails
+may be missed or detected twice; check the counter before trusting a session.
+
+Uncalibrated early/late values are labelled as estimates: their mean includes
+device/path delay. **延迟校准** measures a deliberately connected line-level
+output-to-input loopback using 16 known clicks after four count-in beats. It
+temporarily uses 90 BPM and 25% volume, then restores the latest user settings.
+Disable input monitoring to avoid feedback. Never connect an amplified speaker
+output to an interface input. Calibration requires at least 12 clear responses
+with <=5 ms RMS spread; interrupted/noisy runs are rejected. The offset is held
+only for this app session and matched to input identity, channel, sample rate,
+noise gate and actual output name/rate. Recalibrate after changing driver
+buffering, effects or cabling. A software loopback validates only its own path,
+not a guitar's analogue input path. Playing averages never set the calibration.
+
+WASAPI capture/playback timestamps share the native host clock in CPAL 0.18.2.
+Captured samples go through a bounded atomic ring to a separate analysis
+worker. A Hann-window spectral-flux detector with energy backtracking dates
+attacks in sample time; a one-to-one matcher expires targets using the
+processed input watermark. The UI animation and arrival times never score a
+note. Output generation remains on its existing sample clock; its only added
+callback work is publishing the native beat timestamp. Input discontinuities,
+queue overflow, output xruns, output fallback and tempo/rhythm changes end the
+round rather than producing precise-looking scores from invalid timing.
+
+Run `cargo test --manifest-path src-tauri/Cargo.toml --lib --features practice-build`
+and `npm test`. The ignored `live_output_with_coach_analysis` test explicitly
+exercises silent real-device output while running synthetic guitar analysis;
+it enumerates input devices but does not open a microphone. Hardware-specific
+guitar and physical loopback testing is still required for each actual setup.
 
 **TaktDock is a free, open source metronome app for Windows 10 and 11 that
 lives on the taskbar.** Pick a tempo and a time signature, press play, and keep
@@ -29,6 +104,7 @@ or install it with one line of PowerShell, [below](#install).
 
 - [Why a taskbar metronome](#why-a-taskbar-metronome)
 - [Features](#features)
+- [Practice presets and global shortcuts](#practice-presets-and-global-shortcuts)
 - [Screenshots](#screenshots)
 - [Install](#install)
 - [Using it](#using-it)
@@ -100,6 +176,53 @@ that and nothing more.
   into the app. Nothing is downloaded or installed without a click.
 - **Light on the machine:** about 30 MB of memory and well under one percent of
   one CPU core while playing. [Measured figures](#performance).
+
+## Practice presets and global shortcuts
+
+Open **Practice presets > Manage presets and shortcuts...** from the tray or
+the widget's right-click menu. Save up to nine named presets containing BPM,
+meter, subdivision and the first-beat accent. **New from current** copies the
+current settings into the editor. Saving does not change playback; **Use**
+recalls the preset. Presets can be edited or removed in the same window.
+
+While playing, all of a preset's timing parameters take effect together at the
+next bar, without reopening the stream or resetting the sample clock. A second
+selection before that bar replaces the pending one. Stopped playback starts
+with the selected preset immediately. Sound, volume and output device are
+preserved. Manual tempo, meter and subdivision changes retain their original
+behaviour and supersede a pending preset.
+
+Global shortcuts are off by default. Enable them in the practice window:
+
+| Shortcut | Action |
+| --- | --- |
+| Ctrl+Alt+Space | Play / stop |
+| Ctrl+Alt+Page Up | Previous saved preset, wrapping at the start |
+| Ctrl+Alt+Page Down | Next saved preset, wrapping at the end |
+| Ctrl+Alt+1 through 9 | Recall the corresponding saved slot |
+
+Shortcuts work while another app has focus, and holding a key triggers only
+once. Empty slots do nothing. Removing a preset moves later slots up. If a key
+cannot be registered, the window names it and releases the whole shortcut set;
+resolve the conflict in the other app and enable again to retry.
+Alternatively, select **Ctrl + Alt + Shift** in the shortcut combination list.
+It adds Shift to all of the keys above. `taktdock.exe --practice` opens the
+management window directly, including when TaktDock is already running.
+
+For an independent Windows test build, run `npm run app:practice`. This produces
+`src-tauri/target/release/taktdock.exe`, with a separate application identifier,
+settings in `%APPDATA%/TaktDock-Practice`, and upstream updates disabled so an
+official release cannot replace this build. `TAKTDOCK_DATA_DIR` still overrides
+the settings directory. Regular `npm run app:build` retains the original app
+identity and settings location.
+
+Timing regression tests cover every integer BPM from 30 to 300, subdivisions
+1 to 4, and 44.1/48/96 kHz; preset transitions are checked across different
+callback sizes and through 1,000 beats after the change. A waveform comparison
+also checks that callback size does not change the rendered preset transition.
+The optional `live_output_preset_switch_preserves_the_stream` test uses volume
+zero. Set `TAKTDOCK_TEST_OUTPUT` to an exact output name to test a specific
+interface. Passing these tests does not certify every driver or machine load.
 
 ## Screenshots
 
@@ -240,6 +363,7 @@ output.
 | --- | --- |
 | Start / Stop | Play or stop |
 | Tempo | Presets: 60, 80, 100, 120, 140, 160, 180 BPM |
+| Practice presets | Named presets and the preset / global shortcut manager |
 | Meter | Time signature, and whether the first beat is accented |
 | Subdivision | None, eighths, triplets, sixteenths |
 | Sound | Click, Wood, Hi-hat, and the volume |
@@ -408,7 +532,10 @@ are working in. Use the wheel, the slider, tap tempo or the menu. The accent
 colour picker is a normal window and does take the keyboard.
 
 **Does it have a keyboard shortcut?**
-Not built in yet. Until it has, bind `taktdock.exe --toggle` to a key in
+Yes. Enable global shortcuts under **Practice presets > Manage presets and
+shortcuts...**. The default is Ctrl+Alt+Space for play/stop, Page Up/Down for
+previous/next preset, and 1 through 9 for preset slots. An alternative adds
+Shift to all bindings. `taktdock.exe --toggle` also remains available for
 AutoHotkey, PowerToys or your keyboard software.
 
 **Does it run on macOS or Linux?**
