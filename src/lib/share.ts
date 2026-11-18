@@ -5,8 +5,6 @@ export interface ShareData {
   date: string;
   weekday: string;
   book: string;
-  /** Subtitle and author, as one line under the book's name. */
-  byline: string;
   minutes: number;
   checkedIn: boolean;
   streak: number;
@@ -38,7 +36,7 @@ export function shareData(journal: Journal, book: Book, today: string): ShareDat
       };
     });
   return {
-    date: today, weekday: weekdayName(today), book: book.title, byline: [book.subtitle, book.author ? `${book.author} 著` : ""].filter(Boolean).join(" · "),
+    date: today, weekday: weekdayName(today), book: book.title,
     minutes: minutesOf(today), checkedIn: seconds.has(today),
     streak: streaks(seconds.keys(), today).current, days: seconds.size,
     totalMinutes: Math.round([...seconds.values()].reduce((a, b) => a + b, 0) / 60),

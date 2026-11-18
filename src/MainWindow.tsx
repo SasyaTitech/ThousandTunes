@@ -23,10 +23,10 @@ const METERS = ["1/4", "2/4", "3/4", "4/4", "5/4", "6/8", "7/8"];
 const PAGES = [["home", "主页"], ["practice", "练习"], ["library", "教材"], ["coach", "跟拍"], ["metronome", "节拍器"]] as const;
 type Page = typeof PAGES[number][0];
 /** Palettes for the window; the CSS holds the tokens, this the names and a swatch. */
-const SKINS = [["qianli", "千里江山", "#1f9bb0"], ["yanzhi", "胭脂", "#c0354a"], ["xuanqing", "玄青", "#f0b429"], ["gongqiang", "宫墙", "#8c1c22"], ["qinghua", "青花", "#1f4fa0"], ["qingci", "青瓷", "#a9c8c0"], ["mo", "玄朱", "#d9432f"], ["jin", "墨金", "#c9a04a"], ["dai", "黛青", "#5fa8c4"], ["song", "松烟", "#7fae8b"], ["xuan", "素宣", "#f1ece0"], ["yue", "月白", "#e8edef"]] as const;
+const SKINS = [["mo", "墨", "#b4493b"], ["dai", "黛", "#5f86a3"], ["song", "松烟", "#6c9079"], ["qianli", "千里江山", "#3f8a93"], ["su", "素", "#e9e9e5"], ["yue", "月白", "#dfe6ea"], ["qingci", "青瓷", "#c9d8d3"], ["qinghua", "青花", "#34558f"]] as const;
 type Skin = typeof SKINS[number][0];
 function storedSkin(): Skin {
-  try { const v = localStorage.getItem("td-skin"); return SKINS.find(s => s[0] === v)?.[0] ?? "qianli"; } catch { return "qianli"; }
+  try { const v = localStorage.getItem("td-skin"); return SKINS.find(s => s[0] === v)?.[0] ?? "mo"; } catch { return "mo"; }
 }
 /** Played time is written this often, so closing the window loses little. */
 const FLUSH_SECONDS = 10;
@@ -184,7 +184,7 @@ export default function MainWindow() {
       </div>
     </div>
     <aside className="td-rail">
-      <div className="td-brand" title={`${VERSE}——${VERSE_SOURCE}`}><b className="td-seal">千曲</b><small>THOUSAND TUNES</small></div>
+      <div className="td-brand" title={`${VERSE}——${VERSE_SOURCE}`}><b className="td-seal">千曲</b></div>
       <nav className="td-mode-nav" role="tablist" aria-label="页面" aria-orientation="vertical">
         {PAGES.map(([id, label]) => <button key={id} role="tab" aria-selected={page === id} onClick={() => setPage(id)}>{label}</button>)}
       </nav>
@@ -198,7 +198,7 @@ export default function MainWindow() {
     </aside>
     <div className="td-body">
     <header className="td-top">
-      <span className="td-date">{cnDate(today)} · {weekdayName(today)}</span>
+      <span className="td-date">{cnDate(today).split("年")[1]} · {weekdayName(today)}</span>
       <div className="td-streak" aria-label="打卡">
         <span title={`最长连续 ${run.longest} 天`}><b className="num">{run.current}</b>天连续</span>
         {checkedIn && !byHand ? <span className="td-checked">✓ 今日已打卡</span>

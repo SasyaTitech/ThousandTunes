@@ -39,7 +39,6 @@ export default function Stats({ journal, book, today, practise, openLibrary }: P
 
   const titles = new Map(book.weeks.flatMap(w => w.exercises).map(e => [e.id, e]));
   const todayMinutes = days.get(today) ?? 0;
-  const firstDay = [...days.keys()].sort()[0];
   const listed = [...titles.values()].filter(e => journal.practising.some(i => i.book === book.id && i.exercise === e.id));
   const secondsToday = (id: string) => journal.entries.find(e => e.book === book.id && e.exercise === id && e.date === today)?.seconds ?? 0;
   const recent = journal.entries.filter(e => e.book === book.id && (e.seconds >= 60 || e.speed !== null || e.passed)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
@@ -49,15 +48,13 @@ export default function Stats({ journal, book, today, practise, openLibrary }: P
       <div className="st-hero-main">
         <p className="st-kicker">{book.title}</p>
         <h2>{days.has(today) ? todayMinutes > 0 ? `今天已练 ${formatMinutes(todayMinutes)}` : "今天已打卡" : "今天还没开始练"}</h2>
-        <p className="st-sub">{run.current > 0 ? `已连续打卡 ${run.current} 天` : "目前没有连续打卡"}{firstDay ? ` · 从 ${firstDay} 起共练了 ${days.size} 天` : ""}</p>
+        <p className="st-sub">{run.current > 0 ? `已连续打卡 ${run.current} 天` : "目前没有连续打卡"}</p>
       <div className="st-hero-actions">
         <button type="button" className="st-share" onClick={() => setSharing(true)}>分享今天</button>
         <button type="button" className="primary st-start" onClick={() => practise()}>开始练习 →</button>
       </div>
       </div>
-      <s className="td-strings" aria-hidden="true" />
-      <p className="st-verse"><span>{VERSE_LINES[0]}</span><span>{VERSE_LINES[1]}</span><small>{VERSE_SOURCE}</small></p>
-      <b className="st-glyph" aria-hidden="true">曲</b>
+      <p className="st-verse" title={VERSE_SOURCE}><span>{VERSE_LINES[0]}</span><span>{VERSE_LINES[1]}</span></p>
     </header>
     {sharing && <ShareDialog journal={journal} book={book} today={today} close={() => setSharing(false)} />}
 

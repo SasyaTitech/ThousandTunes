@@ -276,17 +276,17 @@ test("the window opens on the home page, which starts practice in one click", as
 test("a colour scheme is chosen from the header and kept for next time", async ({ page }) => {
   await installTauriMock(page);
   await page.goto("/?view=main");
-  await expect(page.locator("html")).toHaveAttribute("data-skin", "qianli");
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "mo");
   await page.getByText("配色", { exact: true }).click();
-  await expect(page.getByRole("radio")).toHaveCount(12);
-  await page.getByRole("radio", { name: "黛青" }).click();
+  await expect(page.getByRole("radio")).toHaveCount(8);
+  await page.getByRole("radio", { name: "黛" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-skin", "dai");
   await expect(page.getByRole("radiogroup", { name: "主题配色" })).toBeHidden();
   const accent = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--takt-from").trim());
-  expect(await accent()).toBe("#5fa8c4");
+  expect(await accent()).toBe("#5f86a3");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-skin", "dai");
-  expect(await accent()).toBe("#5fa8c4");
+  expect(await accent()).toBe("#5f86a3");
 });
 
 test("this run starts again at each press of start while the day's total adds up", async ({ page }) => {
@@ -330,11 +330,6 @@ test("today's practice becomes a picture that can be copied or saved", async ({ 
   expect(colours).toBeGreaterThan(50);
   await page.screenshot({ path: test.info().outputPath("share.png") });
 
-  const line = dialog.getByLabel("卡片上的话");
-  const first = await line.textContent();
-  await dialog.getByRole("button", { name: "换一句话" }).click();
-  await expect(line).not.toHaveText(first!);
-
   await dialog.getByRole("radio", { name: "方形 1:1" }).click();
   expect(await size()).toEqual([1080, 1080]);
   await page.screenshot({ path: test.info().outputPath("share-square.png") });
@@ -362,17 +357,11 @@ test("the name and its verse greet the player, then stay on the home page", asyn
   await page.getByRole("tab", { name: "教材" }).click();
   await page.getByRole("tab", { name: "主页" }).click();
   await expect(card).toBeHidden();
-  await expect(page.getByRole("region", { name: "主页" }).locator(".st-verse")).toHaveText("操千曲而后晓声，观千剑而后识器。刘勰《文心雕龙·知音》");
-  await expect(page.locator(".td-brand")).toHaveText("千曲THOUSAND TUNES");
+  await expect(page.getByRole("region", { name: "主页" }).locator(".st-verse")).toHaveText("操千曲而后晓声，观千剑而后识器。");
+  await expect(page.locator(".td-brand")).toHaveText("千曲");
 });
 
-test("the practice page closes with a line from the classics, and a press brings another", async ({ page }) => {
-  await open(page, td => { td.journal.practising = [{ book: "shuaishuai-7w-1", exercise: "W1-EX5" }]; });
-  const motto = page.locator(".fx-motto button");
-  await expect(motto).toContainText(/[《联]/); // every line names where it is from
-  const first = await motto.textContent();
-  await motto.click();
-  await expect(motto).not.toHaveText(first!);
-  // The date is written out in the header, the way a letter is dated.
-  await expect(page.locator(".td-date")).toHaveText("二〇二六年十一月十八日 · 周三");
+test("the header dates the day in characters", async ({ page }) => {
+  await open(page);
+  await expect(page.locator(".td-date")).toHaveText("十一月十八日 · 周三");
 });

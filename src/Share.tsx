@@ -1,24 +1,23 @@
 import * as React from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Book, Journal } from "@/lib/journal";
-import { lineFor, type Line, type LineKind } from "@/lib/quotes";
 import { shareData, type ShareData, type Shape } from "@/lib/share";
 import { cnDate } from "@/lib/verse";
 
-interface Palette { page: string; text: string; muted: string; accent: string; bright: string; line: string; seal: string; sealInk: string }
+interface Palette { page: string; text: string; muted: string; accent: string; line: string; seal: string; sealInk: string }
 function palette(): Palette {
   const css = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
   return {
     page: v("--page", "#0f0f0e"), text: v("--text-primary", "#ece7dc"), muted: v("--text-secondary", "#9a958a"),
-    accent: v("--takt-from", "#d9432f"), bright: v("--takt-to", "#f0624d"), line: v("--border-strong", "#ffffff42"),
+    accent: v("--takt-from", "#b4493b"), line: v("--border-strong", "#ffffff42"),
     seal: v("--seal", "#c8372a"), sealInk: v("--seal-ink", "#fff3e6"),
   };
 }
 
 const W = 1080, PAD = 84;
 /** The title runs down the right edge; everything above the list keeps clear of it. */
-const COLUMN = 190;
+const COLUMN = 130;
 const SONG = `"Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC", STZhongsong, "Songti SC", SimSun, serif`;
 const KAI = `STKaiti, KaiTi, "楷体", "Kaiti SC", serif`;
 const NUM = `Bahnschrift, "DIN Alternate", "Segoe UI", sans-serif`;
@@ -26,12 +25,12 @@ const SANS = `"Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif`;
 
 /** Where each band of the card sits, in card pixels. The square card is the portrait one with less air and no week. */
 const LAYOUT = {
-  portrait: { height: 1440, label: 262, number: 486, numberSize: 236, strings: 548, stats: 664, rule: 770, listHead: 842, row: 912, rowStep: 72, rows: 4, week: 1190, quote: 1300, quoteSize: 32, seal: [76, 108] },
-  square: { height: 1080, label: 248, number: 442, numberSize: 200, strings: 492, stats: 590, rule: 672, listHead: 736, row: 804, rowStep: 68, rows: 2, week: 0, quote: 946, quoteSize: 28, seal: [64, 92] },
+  portrait: { height: 1440, label: 262, number: 486, numberSize: 236, stats: 640, rule: 760, listHead: 836, row: 912, rowStep: 76, rows: 5, week: 1300, seal: [76, 108] },
+  square: { height: 1080, label: 248, number: 442, numberSize: 200, stats: 574, rule: 660, listHead: 728, row: 800, rowStep: 62, rows: 3, week: 0, seal: [56, 80] },
 } as const;
 
 /** Draws the card in the colours the window is wearing. Everything is in card pixels, 1080 wide. */
-export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Shape, line: Line) {
+export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Shape) {
   const L = LAYOUT[shape], H = L.height;
   canvas.width = W; canvas.height = H;
   const c = canvas.getContext("2d")!;
@@ -52,25 +51,22 @@ export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Sha
     [...s].forEach((ch, i) => text(ch, x, top + i * step + size * .86, `${weight} ${size}px ${family}`, colour, "center"));
   };
 
-  // Ground, and one huge character cropped by the edge.
+  // Ground.
   c.textBaseline = "alphabetic";
   c.fillStyle = p.page; c.fillRect(0, 0, W, H);
-  c.globalAlpha = .045; text("曲", W - 250, H - 150, `400 780px ${KAI}`, p.text, "center"); c.globalAlpha = 1;
 
   // Head: a heavy rule, the name in small capitals, the date written out.
-  c.fillStyle = p.text; c.fillRect(PAD, 84, W - PAD * 2, 4);
+  c.fillStyle = p.text; c.fillRect(PAD, 84, W - PAD * 2, 2);
   c.letterSpacing = "7px";
   text("THOUSAND TUNES", PAD, 132, `600 18px ${SANS}`, p.muted);
   c.letterSpacing = "5px";
   text(`${cnDate(data.date)} · ${data.weekday}`, PAD, 186, `400 30px ${SONG}`, p.text);
   c.letterSpacing = "0px";
 
-  // The book runs down the right edge, its byline in a second column beside it.
+  // The book runs down the right edge.
   const room = L.rule - 30 - 150, title = [...data.book.replace(/\s+/g, "")];
   const step = Math.min(88, room / title.length), size = Math.min(76, Math.floor(step * .9));
   down(title.join(""), W - PAD - 40, 150, size, step, 600, SONG, p.text);
-  const byline = [...data.byline.replace(/\s*·\s*/g, "·").replace(/\s+/g, "")].slice(0, Math.floor(room / 30));
-  down(byline.join(""), W - PAD - 40 - 84, 154, 24, 30, 400, SONG, p.muted);
 
   // The day's time, as large as the card allows.
   const left = W - PAD - COLUMN;
@@ -84,10 +80,6 @@ export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Sha
   if (data.minutes === 0) text(data.checkedIn ? "已打卡" : "还没开始", PAD, L.number - 20, `600 ${Math.round(L.numberSize * .6)}px ${SONG}`, p.text);
   else { if (h) big(String(h), "小时"); if (m || !h) big(String(m), "分钟"); }
 
-  // Six strings.
-  c.fillStyle = p.line;
-  for (let i = 0; i < 6; i++) c.fillRect(PAD, L.strings + i * 4, left - PAD, 1);
-
   // Three numbers that carry over from day to day.
   const hours = data.totalMinutes >= 60;
   const stats: Array<[string, string, string]> = [
@@ -96,7 +88,7 @@ export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Sha
   ];
   stats.forEach(([n, unit, label], i) => {
     const sx = PAD + i * ((left - PAD) / 3);
-    const w = text(n, sx, L.stats, `300 condensed 78px ${NUM}`, i === 0 ? p.bright : p.text);
+    const w = text(n, sx, L.stats, `300 condensed 78px ${NUM}`, p.text);
     text(unit, sx + w + 10, L.stats, `400 26px ${SONG}`, p.muted);
     text(label, sx, L.stats + 46, `400 26px ${SONG}`, p.muted);
   });
@@ -104,12 +96,11 @@ export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Sha
 
   // What was practised and for how long, longest first.
   const more = data.items.length > L.rows, shown = data.items.slice(0, more ? L.rows - 1 : L.rows);
-  c.fillStyle = p.accent; c.fillRect(PAD, L.listHead - 24, 5, 26);
-  text(data.items.length ? `今天练了 ${data.items.length} 项` : "今天还没有练习记录", PAD + 20, L.listHead, `400 28px ${SONG}`, p.muted);
+  text(data.items.length ? `今天练了 ${data.items.length} 项` : "今天还没有练习记录", PAD, L.listHead, `400 28px ${SONG}`, p.muted);
   shown.forEach((item, i) => {
     const y = L.row + i * L.rowStep;
     let right = W - PAD;
-    if (item.passed) right -= text("达标", right, y, `600 26px ${SONG}`, p.bright, "right") + 24;
+    if (item.passed) right -= text("达标", right, y, `400 26px ${SONG}`, p.muted, "right") + 24;
     if (item.speed) right -= text(item.speed, right, y, `400 condensed 34px ${NUM}`, p.text, "right") + 28;
     if (item.time) right -= text(item.time, right, y, `400 28px ${SONG}`, p.muted, "right") + 28;
     text(fit(item.title, `600 36px ${SONG}`, right - PAD), PAD, y, `600 36px ${SONG}`, p.text);
@@ -118,30 +109,18 @@ export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Sha
 
   // The week behind today as seven dots, inked by how long each day was; only where there is room.
   if (L.week) {
-    const gap = (W - PAD * 2) / 7;
+    const gap = (W - PAD * 2 - L.seal[0] - 40) / 7;
     data.week.forEach((d, i) => {
       const cx = PAD + (i + .5) * gap, level = d.minutes === 0 ? 0 : d.minutes < 15 ? .28 : d.minutes < 30 ? .5 : d.minutes < 60 ? .76 : 1;
       c.beginPath(); c.arc(cx, L.week, 15, 0, Math.PI * 2);
       if (level) { c.globalAlpha = level; c.fillStyle = p.text; c.fill(); c.globalAlpha = 1; } else { c.strokeStyle = p.line; c.lineWidth = 1.5; c.stroke(); }
       if (d.today) { c.beginPath(); c.arc(cx, L.week, 23, 0, Math.PI * 2); c.strokeStyle = p.accent; c.lineWidth = 2; c.stroke(); }
-      text(d.label, cx, L.week + 54, `400 22px ${SONG}`, d.today ? p.bright : p.muted, "center");
+      text(d.label, cx, L.week + 54, `400 22px ${SONG}`, p.muted, "center");
     });
   }
 
-  // A closing line, broken in two when it is long, signed with its source and sealed.
-  const [sw, sh] = L.seal, quoteFont = `400 ${L.quoteSize}px ${KAI}`, wide = W - PAD * 2 - sw - 36;
-  c.font = quoteFont;
-  const lines = [line.text];
-  if (c.measureText(line.text).width > wide) {
-    // Break after the punctuation nearest the middle, else in the middle.
-    const whole = line.text;
-    let at = Math.ceil(whole.length / 2), best = Infinity;
-    for (let i = 2; i < whole.length - 2; i++) if ("，。；：！？—）".includes(whole[i - 1]) && Math.abs(i - whole.length / 2) < best) { best = Math.abs(i - whole.length / 2); at = i; }
-    lines.splice(0, 1, whole.slice(0, at), whole.slice(at));
-  }
-  const lead = Math.round(L.quoteSize * 1.44);
-  lines.forEach((s, i) => text(fit(s, quoteFont, wide), PAD, L.quote + i * lead, quoteFont, p.text));
-  if (line.source) text(`—— ${line.source}`, PAD, L.quote + (lines.length - 1) * lead + 42, `400 22px ${SONG}`, p.muted);
+  // Sealed in the corner.
+  const [sw, sh] = L.seal;
   const sx = W - PAD - sw, sy = H - 70 - sh;
   c.fillStyle = p.seal; c.fillRect(sx, sy, sw, sh);
   c.strokeStyle = p.sealInk; c.lineWidth = 1.5; c.globalAlpha = .7; c.strokeRect(sx + 5, sy + 5, sw - 10, sh - 10); c.globalAlpha = 1;
@@ -149,29 +128,21 @@ export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Sha
 }
 
 const pngOf = (canvas: HTMLCanvasElement) => new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("图片生成失败")), "image/png"));
-function storedKind(): LineKind {
-  try { return localStorage.getItem("td-share-line") === "joke" ? "joke" : "classic"; } catch { return "classic"; }
-}
-
 /** A preview of today's card, with the two things one does with it: copy it, or keep it as a file. */
 export default function ShareDialog({ journal, book, today, close }: { journal: Journal; book: Book; today: string; close: () => void }) {
   const canvas = React.useRef<HTMLCanvasElement>(null);
   const [shape, setShape] = React.useState<Shape>("portrait");
-  const [kind, setKind] = React.useState<LineKind>(storedKind);
-  const [turn, setTurn] = React.useState(0);
-  const line = lineFor(kind, today, turn);
   const [note, setNote] = React.useState("");
   const [saved, setSaved] = React.useState(false);
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const data = React.useMemo(() => shareData(journal, book, today), [journal, book, today]);
-  React.useEffect(() => { if (canvas.current) drawShare(canvas.current, data, shape, line); }, [data, shape, line]);
+  React.useEffect(() => { if (canvas.current) drawShare(canvas.current, data, shape); }, [data, shape]);
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [close]);
-  const pick = (next: LineKind) => { setKind(next); setTurn(0); try { localStorage.setItem("td-share-line", next); } catch { /* private mode */ } };
 
   const run = async (fn: (png: Blob) => Promise<void>) => {
     setBusy(true); setError(""); setNote(""); setSaved(false);
@@ -197,12 +168,6 @@ export default function ShareDialog({ journal, book, today, close }: { journal: 
           <button type="button" role="radio" aria-checked={shape === "portrait"} onClick={() => setShape("portrait")}>竖版 3:4</button>
           <button type="button" role="radio" aria-checked={shape === "square"} onClick={() => setShape("square")}>方形 1:1</button>
         </div>
-        <div className="sh-pick" role="radiogroup" aria-label="落款的话">
-          <button type="button" role="radio" aria-checked={kind === "classic"} onClick={() => pick("classic")}>古文</button>
-          <button type="button" role="radio" aria-checked={kind === "joke"} onClick={() => pick("joke")}>练琴梗</button>
-        </div>
-        <p className="sh-quote" aria-label="卡片上的话">{line.text}{line.source && <small>{line.source}</small>}</p>
-        <button type="button" onClick={() => setTurn(n => n + 1)}>换一句话</button>
         <button type="button" className="primary" disabled={busy} onClick={() => void copy()}>复制图片</button>
         <button type="button" disabled={busy} onClick={() => void save()}>保存为图片文件</button>
         {note && <p className="sh-note" role="status">{note}</p>}

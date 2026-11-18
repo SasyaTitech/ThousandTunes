@@ -1,6 +1,5 @@
 import * as React from "react";
 import type { Transport } from "@/lib/types";
-import { CLASSICS } from "@/lib/quotes";
 import { FREE, formatClock, progressOf, sameItem, targetOf, tempoText, unitLabel, type Book, type Entry, type Exercise, type Item, type Journal } from "@/lib/journal";
 
 export type Mutate = (cmd: string, args: Record<string, unknown>) => Promise<boolean>;
@@ -109,17 +108,8 @@ export default function Focus({ journal, book, today, current, pending, session,
       </div>}
 
       {exercise && <TodayRecord key={exercise.id} journal={journal} item={item} exercise={exercise} today={today} mutate={mutate} flush={flush} />}
-      <Motto key={`motto ${exercise?.id ?? "free"}`} />
     </section>
   </div>;
-}
-
-/** A line from the classics about staying with it: a new one for each exercise, and another on a press. */
-function Motto() {
-  const [at, setAt] = React.useState(() => Math.floor(Math.random() * CLASSICS.length));
-  const line = CLASSICS[at];
-  const another = () => setAt(n => (n + 1 + Math.floor(Math.random() * (CLASSICS.length - 1))) % CLASSICS.length);
-  return <p className="fx-motto"><button type="button" title="点一下，换一句" onClick={another}>{line.text}<small>{line.source}</small></button></p>;
 }
 
 function ExerciseHead({ exercise, journal, book, transport, setBpm }: { exercise: Exercise; journal: Journal; book: Book; transport: Transport | null; setBpm: (bpm: number) => void }) {
@@ -146,7 +136,7 @@ function ExerciseHead({ exercise, journal, book, transport, setBpm }: { exercise
 function Timers({ exercise, seconds, session, running, children }: { exercise: Exercise | null; seconds: number; session: number; running: boolean; children?: React.ReactNode }) {
   const goal = (exercise?.minutes ?? 0) * 60;
   return <div className="fx-timers" data-running={running}>
-    <div title="从这次按下开始算起，停止后再开始会重新计"><span>本次 · 从按下开始</span><b className="num" aria-label="本次计时">{formatClock(session)}</b></div>
+    <div title="从这次按下开始算起，停止后再开始会重新计"><span>本次</span><b className="num" aria-label="本次计时">{formatClock(session)}</b></div>
     <div className="fx-today" title="这条练习今天一共练了多久"><span>今日累计{goal > 0 && seconds >= goal ? " · 已练够" : ""}</span>
       <b className="num" aria-label="今日计时">{formatClock(seconds)}{goal ? <small> / {exercise!.minutes}:00</small> : null}</b>
       {goal > 0 && <i role="progressbar" data-done={seconds >= goal} aria-label="今日进度" aria-valuemin={0} aria-valuemax={goal} aria-valuenow={Math.min(goal, seconds)}><u style={{ width: `${Math.min(100, seconds / goal * 100)}%` }} /></i>}</div>

@@ -4,7 +4,6 @@ import { TAP_RESET_MS, TapTempo } from "../src/lib/tap";
 import { bpmToFill, fillToBpm, subdivisionLabel } from "../src/lib/utils";
 import { addDays, dayOf, formatClock, formatDuration, formatMinutes, PracticeClock, progressOf, secondsByDay, streaks, targetOf, tempoText, weekdayOf, type Book, type Exercise } from "../src/lib/journal";
 import { shareData } from "../src/lib/share";
-import { CLASSICS, QUOTES, lineFor, quoteFor } from "../src/lib/quotes";
 import { cnDate } from "../src/lib/verse";
 import bookJson from "../src/books/shuaishuai-7w-1.json" with { type: "json" };
 
@@ -135,25 +134,10 @@ test("the share card says what was practised today, longest first", () => {
   ]);
   expect(card.week.map(d => d.minutes)).toEqual([0, 0, 0, 0, 0, 20, 45]);
   expect(card.week.map(d => d.label).join("")).toBe("四五六日一二三");
-  expect([card.book, card.byline]).toEqual(["帅帅 7 周计划 I", "零基础入门电吉他 · 帅帅 著"]);
+  expect(card.book).toBe("帅帅 7 周计划 I");
   expect(shareData({ ...journal, entries: [] }, book, "2026-11-18")).toMatchObject({ minutes: 0, checkedIn: false, streak: 0, items: [] });
 });
 
-test("the card's closing line is fixed for a day, steps on when asked, and fits two lines", () => {
-  expect(quoteFor("2026-11-18")).toBe(quoteFor("2026-11-18"));
-  expect(QUOTES).toContain(quoteFor("2026-11-18"));
-  const round = Array.from({ length: QUOTES.length }, (_, i) => quoteFor("2026-11-18", i));
-  expect(new Set(round).size).toBe(QUOTES.length);
-  expect(quoteFor("2026-11-18", QUOTES.length)).toBe(round[0]);
-  expect(new Set(QUOTES).size).toBe(QUOTES.length);
-  for (const q of QUOTES) expect(q.length, q).toBeLessThanOrEqual(40);
-});
-
-test("the classical lines each name a source, fit the card, and are dated the old way", () => {
-  expect(new Set(CLASSICS.map(l => l.text)).size).toBe(CLASSICS.length);
-  for (const l of CLASSICS) { expect(l.source, l.text).not.toBe(""); expect(l.text.length, l.text).toBeLessThanOrEqual(40); }
-  expect(CLASSICS).toContainEqual({ text: "苟有恒，何必三更眠五更起；最无益，莫过一日曝十日寒。", source: "胡居仁 自勉联" });
-  expect(lineFor("classic", "2026-11-18")).toEqual(lineFor("classic", "2026-11-18"));
-  expect(lineFor("joke", "2026-11-18").source).toBe("");
+test("a date is written out in characters", () => {
   expect(["2026-11-19", "2026-01-01", "2030-10-20", "1999-12-31", "2026-02-10"].map(cnDate)).toEqual(["二〇二六年十一月十九日", "二〇二六年一月一日", "二〇三〇年十月二十日", "一九九九年十二月三十一日", "二〇二六年二月十日"]);
 });
