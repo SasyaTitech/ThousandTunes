@@ -218,7 +218,8 @@ test("an exercise can be taken off the list from the list itself", async ({ page
   const rail = page.getByRole("complementary", { name: "今日清单" });
   await rail.getByRole("button", { name: "W1-EX6 1&3指全指板爬格子" }).click();
 
-  await rail.getByRole("listitem").nth(2).hover();
+  // The × can be seen without pointing at the row.
+  await expect(rail.getByRole("button", { name: "移出 W1-EX7" })).toHaveCSS("opacity", "0.55");
   await rail.getByRole("button", { name: "移出 W1-EX7" }).click();
   // Nothing happens until it is confirmed, and it can be called off.
   const ask = rail.getByRole("group", { name: "确认移出 W1-EX7" });
@@ -297,6 +298,86 @@ test("a colour scheme is chosen from the header and kept for next time", async (
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-skin", "dai");
   expect(await accent()).toBe("#5f86a3");
+});
+
+test("volume is set from a panel at the foot of the spine, which puts itself away", async ({ page }) => {
+  await installTauriMock(page);
+  await page.setViewportSize({ width: 1120, height: 780 });
+  await page.goto("/?view=main");
+  const slider = page.getByRole("slider", { name: "音量" });
+  await expect(slider).toHaveCount(0);
+  await page.getByText("音量", { exact: true }).click();
+  await expect(slider).toHaveValue("75");
+  // The slider is on screen and in front, at the normal and the minimum window size.
+  const covered = () => slider.evaluate(el => {
+    const r = el.getBoundingClientRect(), inside = r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
+    return !inside || ![[r.left + 3, r.top + 3], [r.right - 3, r.bottom - 3]].every(([x, y]) => el.contains(document.elementFromPoint(x, y)));
+  });
+  expect(await covered()).toBe(false);
+  await page.setViewportSize({ width: 640, height: 540 });
+  expect(await covered()).toBe(false);
+  await page.setViewportSize({ width: 1120, height: 780 });
+
+  await slider.fill("40");
+  await slider.press("ArrowLeft");
+  await expect(page.getByText("39%")).toBeVisible();
+  expect((await calls(page, "set_main_controls")).at(-1)?.args).toEqual({ controls: { volume: 39 } });
+
+  // A click elsewhere, Escape, or opening the other panel puts it away.
+  await page.getByRole("region", { name: "主页" }).getByRole("heading", { level: 2 }).click();
+  await expect(slider).toHaveCount(0);
+  await page.getByText("音量", { exact: true }).click();
+  await expect(slider).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(slider).toHaveCount(0);
+  await page.getByText("音量", { exact: true }).click();
+  await page.getByText("配色", { exact: true }).click();
+  await expect(slider).toHaveCount(0);
+  await expect(page.getByRole("radio")).toHaveCount(8);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("radio")).toHaveCount(0);
+
+  // The metronome page's own slider shows the same setting.
+  await page.getByRole("tab", { name: "节拍器" }).click();
+  await expect(slider).toHaveValue("39");
+});
+
+test("the home page's list takes an exercise off as well, after asking", async ({ page }) => {
+  await installTauriMock(page);
+  await page.clock.install({ time: NOW });
+  await page.addInitScript(() => {
+    const td = (window as any).__TD;
+    td.journal.practising = ["W1-EX5", "W1-EX6"].map(exercise => ({ book: "shuaishuai-7w-1", exercise }));
+    td.journal.entries = [{ book: "shuaishuai-7w-1", exercise: "W1-EX5", date: "2026-11-18", seconds: 720, speed: 80, passed: false, note: "" }];
+    // W1-EX5 is the one last practised, so it is the one the clock would time.
+    localStorage.setItem("td-current", JSON.stringify({ book: "shuaishuai-7w-1", exercise: "W1-EX5" }));
+  });
+  await page.setViewportSize({ width: 1120, height: 780 });
+  await page.goto("/?view=main");
+  const list = page.getByRole("region", { name: "主页" }).getByRole("region", { name: "今日清单" });
+  // The × can be seen without pointing at the row.
+  await expect(list.getByRole("button", { name: "移出 W1-EX6" })).toHaveCSS("opacity", "0.55");
+  await expect(list.getByRole("button", { name: "去练 W1-EX6 1&3指全指板爬格子" })).toContainText("1&3指全指板爬格子");
+
+  await list.getByRole("button", { name: "移出 W1-EX6" }).click();
+  const ask = list.getByRole("group", { name: "确认移出 W1-EX6" });
+  await expect(ask).toContainText("以前的记录都会保留");
+  await ask.getByRole("button", { name: "取消" }).click();
+  expect(await calls(page, "set_journal_practising")).toEqual([]);
+  await list.getByRole("button", { name: "移出 W1-EX6" }).click();
+  await ask.getByRole("button", { name: "移出", exact: true }).click();
+  await expect(list.getByRole("listitem")).toHaveCount(1);
+  expect((await calls(page, "set_journal_practising")).at(-1)?.args).toEqual({ book: BOOK, exercises: ["W1-EX6"], on: false });
+
+  await list.getByRole("button", { name: "移出 W1-EX5" }).click();
+  await expect(list.getByRole("group", { name: "确认移出 W1-EX5" })).toContainText("今天已有记录：练了 12:00，成绩 80");
+  await list.getByRole("button", { name: "移出并清除今日记录" }).click();
+  await expect(list.getByText("还没有挑出正在练的项目")).toBeVisible();
+  expect((await calls(page, "delete_journal_entry")).map(c => c.args)).toEqual([{ book: BOOK, exercise: "W1-EX5", date: "2026-11-18" }]);
+  // It was the one being timed, so the practice page is left on free practice rather than on it.
+  await page.getByRole("tab", { name: "练习", exact: true }).click();
+  await expect(page.getByRole("region", { name: "当前练习" }).getByRole("heading", { name: "自由练习" })).toBeVisible();
+  await expect(page.getByText("清单是空的")).toBeVisible();
 });
 
 test("this run starts again at each press of start while the day's total adds up", async ({ page }) => {

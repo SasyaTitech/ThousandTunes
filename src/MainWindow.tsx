@@ -80,6 +80,22 @@ export default function MainWindow() {
     try { localStorage.setItem("td-current", JSON.stringify(item)); } catch { /* private mode */ }
   }
 
+  // Taking an exercise off the list keeps its records unless today's is cleared too.
+  // The one being timed hands over to its neighbour first, so its pending time is
+  // written before anything is cleared.
+  function drop(id: string, clear: boolean) {
+    const cur = currentRef.current;
+    if (journal && cur?.book === book.id && cur.exercise === id) {
+      const listed = book.weeks.flatMap(w => w.exercises).filter(e => e.id === id || journal.practising.some(i => i.book === book.id && i.exercise === e.id));
+      const at = listed.findIndex(e => e.id === id), next = listed[at + 1] ?? listed[at - 1] ?? null;
+      select(next ? { book: book.id, exercise: next.id } : null);
+    }
+    void (async () => {
+      await mutate("set_journal_practising", { book: book.id, exercises: [id], on: false });
+      if (clear) await mutate("delete_journal_entry", { book: book.id, exercise: id, date: today });
+    })();
+  }
+
   React.useEffect(() => {
     let disposed = false;
     const cleanup: Array<() => void> = [];
@@ -188,13 +204,19 @@ export default function MainWindow() {
       <nav className="td-mode-nav" role="tablist" aria-label="页面" aria-orientation="vertical">
         {PAGES.map(([id, label]) => <button key={id} role="tab" aria-selected={page === id} onClick={() => setPage(id)}>{label}</button>)}
       </nav>
-      <details className="td-skin">
-        <summary title="换一套配色"><i style={{ background: SKINS.find(s => s[0] === skin)![2] }} />配色</summary>
+      <Pop className="td-vol" label="音量" title="节拍器音量" mark={<i><u style={{ height: `${volume}%` }} /></i>}>
+        <div>
+          <label>音量<span className="num">{volume}%{volume > 85 ? " · 增强" : ""}</span>
+            <input className="td-range" aria-label="音量" type="range" min={0} max={100} autoFocus disabled={!transport} value={volume} onChange={e => setVolume(Number(e.target.value))}
+              onPointerUp={e => void change({ volume: Number(e.currentTarget.value) })} onKeyUp={e => void change({ volume: Number(e.currentTarget.value) })} /></label>
+        </div>
+      </Pop>
+      <Pop className="td-skin" label="配色" title="换一套配色" mark={<i style={{ background: SKINS.find(s => s[0] === skin)![2] }} />}>
         <div role="radiogroup" aria-label="主题配色">
           {SKINS.map(([id, label, color]) => <button type="button" key={id} role="radio" aria-checked={skin === id}
             onClick={e => { setSkin(id); e.currentTarget.closest("details")!.open = false; }}><i style={{ background: color }} />{label}</button>)}
         </div>
-      </details>
+      </Pop>
     </aside>
     <div className="td-body">
     <header className="td-top">
@@ -212,9 +234,9 @@ export default function MainWindow() {
     <main className="td-page" data-page={page}>
       {!journal && (page === "practice" || page === "library" || page === "home") && <p className="jr-empty">正在读取练习记录…</p>}
       {page === "practice" && journal && <Focus journal={journal} book={book} today={today} current={current} pending={clock.current.pendingSeconds} session={clock.current.sessionSeconds}
-        transport={transport} metronome={metronome("hero")} select={select} mutate={mutate} flush={() => flush()} setBpm={bpm => void change({ bpm })} openLibrary={() => setPage("library")} />}
+        transport={transport} metronome={metronome("hero")} select={select} mutate={mutate} drop={drop} flush={() => flush()} setBpm={bpm => void change({ bpm })} openLibrary={() => setPage("library")} />}
       {page === "library" && journal && <Library journal={journal} books={BOOKS} book={book} today={today} current={current} mutate={mutate} practise={item => { select(item); setPage("practice"); }} />}
-      {page === "home" && journal && <Stats journal={journal} book={book} today={today} practise={item => { if (item) select(item); setPage("practice"); }} openLibrary={() => setPage("library")} />}
+      {page === "home" && journal && <Stats journal={journal} book={book} today={today} practise={item => { if (item) select(item); setPage("practice"); }} drop={drop} openLibrary={() => setPage("library")} />}
       <div hidden={page !== "coach"}><RhythmCoach transport={transport} /></div>
       {page === "metronome" && <div className="td-metro">
         <section className="td-panel" aria-label="节拍设置">
@@ -246,6 +268,26 @@ export default function MainWindow() {
     {page !== "practice" && metronome("bar")}
     </div>
   </div>;
+}
+
+/**
+ * A control at the foot of the spine that opens a small panel beside it.
+ * The panel exists only while open; a click elsewhere or Escape puts it away.
+ */
+function Pop({ className, label, title, mark, children }: { className: string; label: string; title: string; mark: React.ReactNode; children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDetailsElement>(null);
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => { if (ref.current && !ref.current.contains(e.target as Node)) ref.current.open = false; };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape" && ref.current) ref.current.open = false; };
+    document.addEventListener("pointerdown", away); document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", key); };
+  }, [open]);
+  return <details ref={ref} className={`td-pop ${className}`} onToggle={e => setOpen(e.currentTarget.open)}>
+    <summary title={title}>{mark}{label}</summary>
+    {open && children}
+  </details>;
 }
 
 interface MetronomeProps {

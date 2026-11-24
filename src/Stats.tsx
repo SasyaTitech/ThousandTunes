@@ -1,4 +1,5 @@
 import * as React from "react";
+import DropAsk from "@/DropAsk";
 import ShareDialog from "@/Share";
 import { VERSE_LINES, VERSE_SOURCE } from "@/lib/verse";
 import { addDays, bookTotals, formatClock, formatDuration, formatMinutes, secondsByDay, streaks, unitLabel, weekdayOf, type Book, type Item, type Journal } from "@/lib/journal";
@@ -13,6 +14,8 @@ interface Props {
   today: string;
   /** Opens the practice page, on this exercise when one is given. */
   practise: (item?: Item) => void;
+  /** Takes an exercise off the list, clearing today's record of it when asked to. */
+  drop: (id: string, clear: boolean) => void;
   openLibrary: () => void;
 }
 
@@ -20,8 +23,9 @@ interface Props {
  * The page the window opens on: what has been practised, before anything asks
  * to be operated. Today's list sits here too, so one click starts practising.
  */
-export default function Stats({ journal, book, today, practise, openLibrary }: Props) {
+export default function Stats({ journal, book, today, practise, drop, openLibrary }: Props) {
   const [sharing, setSharing] = React.useState(false);
+  const [asking, setAsking] = React.useState<string | null>(null);
   const seconds = secondsByDay(journal);
   // Whole minutes are plenty for a calendar and a bar chart.
   const days = new Map([...seconds].map(([day, s]) => [day, Math.round(s / 60)]));
@@ -82,11 +86,19 @@ export default function Stats({ journal, book, today, practise, openLibrary }: P
       <section className="st-panel st-wide" aria-label="今日清单">
         <h3>今日清单 <small>点一条直接去练</small></h3>
         {listed.length === 0 ? <p className="st-empty">还没有挑出正在练的项目。<button type="button" onClick={openLibrary}>去教材里挑选</button></p> : <ul className="st-list">
-          {listed.map(e => { const s = secondsToday(e.id), goal = (e.minutes ?? 0) * 60, done = goal > 0 && s >= goal; return <li key={e.id}>
-            <button type="button" data-done={done} aria-label={`去练 ${e.id} ${e.title}`} onClick={() => practise({ book: book.id, exercise: e.id })}>
-              <small className="num">{e.id}</small><span>{e.title}</span>
-              <b className="num">{done ? "✓ " : ""}{formatClock(s)}{goal ? <small> / {e.minutes}:00</small> : null}</b>
-            </button></li>; })}
+          {listed.map(e => {
+            const s = secondsToday(e.id), goal = (e.minutes ?? 0) * 60, done = goal > 0 && s >= goal;
+            if (asking === e.id) return <li key={e.id}><DropAsk exercise={e} seconds={s}
+              entry={journal.entries.find(x => x.book === book.id && x.exercise === e.id && x.date === today) ?? null}
+              drop={clear => { setAsking(null); drop(e.id, clear); }} cancel={() => setAsking(null)} /></li>;
+            return <li key={e.id}>
+              <button type="button" data-done={done} aria-label={`去练 ${e.id} ${e.title}`} onClick={() => practise({ book: book.id, exercise: e.id })}>
+                <small className="num">{e.id}</small><span>{e.title}</span>
+                <b className="num">{done ? "✓ " : ""}{formatClock(s)}{goal ? <small> / {e.minutes}:00</small> : null}</b>
+              </button>
+              <button type="button" className="td-drop" aria-label={`移出 ${e.id}`} title="移出今日清单" onClick={() => setAsking(e.id)}>×</button>
+            </li>;
+          })}
         </ul>}
       </section>
 

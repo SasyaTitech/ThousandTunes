@@ -95,13 +95,23 @@ html.td-main-page, .td-main-page body, .td-main-page #root { background: var(--p
 .td-mode-nav button:hover { color: var(--text-primary); }
 .td-mode-nav button[aria-selected="true"] { color: var(--text-primary); font-weight: 600; }
 .td-mode-nav button[aria-selected="true"]::before { content: ""; position: absolute; top: 4px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; background: var(--takt-from); transform: rotate(45deg); }
-.td-skin { margin-top: auto; position: relative; font-size: 12px; }
-.td-skin summary { list-style: none; display: grid; justify-items: center; gap: 8px; padding: 8px 6px; color: var(--text-secondary); cursor: pointer; writing-mode: vertical-rl; }
-.td-skin summary::-webkit-details-marker { display: none; }
-.td-skin summary:hover { color: var(--text-primary); }
+/* At the foot of the spine: volume and colours, each opening a small panel. */
+.td-pop { font-size: 12px; }
+.td-pop:first-of-type { margin-top: auto; }
+.td-pop + .td-pop { margin-top: -10px; }
+.td-pop summary { list-style: none; display: grid; justify-items: center; gap: 8px; padding: 8px 6px; color: var(--text-secondary); cursor: pointer; writing-mode: vertical-rl; }
+.td-pop summary::-webkit-details-marker { display: none; }
+.td-pop summary:hover, .td-pop[open] summary { color: var(--text-primary); }
 .td-skin i { width: 10px; height: 10px; box-shadow: 0 0 0 1px var(--border-strong); transform: rotate(45deg); }
-/* The spine scrolls when the window is short, so it clips what hangs out of it: the menu is placed against the window instead. */
-.td-skin div { position: fixed; z-index: 60; left: 84px; bottom: 14px; width: 232px; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; padding: 6px; border: 1px solid var(--border-strong); background: var(--raised); box-shadow: 0 14px 40px #0007; }
+/* The spine scrolls when the window is short, so it clips what hangs out of it: the panels are placed against the window instead. */
+.td-pop > div { position: fixed; z-index: 60; left: 84px; bottom: 14px; width: 232px; border: 1px solid var(--border-strong); background: var(--raised); box-shadow: 0 14px 40px #0007; }
+.td-skin > div { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; padding: 6px; }
+/* Volume is marked by a small level that stands as high as it is set. */
+.td-vol summary i { position: relative; width: 4px; height: 14px; background: var(--border-strong); }
+.td-vol summary u { position: absolute; left: 0; right: 0; bottom: 0; background: currentColor; }
+.td-vol > div { padding: 14px 16px 12px; }
+.td-vol label { position: relative; gap: 10px; font-size: 13px; }
+.td-vol label span { position: absolute; right: 0; top: 0; color: var(--text-primary); }
 .td-skin div button { display: flex; align-items: center; gap: 12px; border-color: transparent; text-align: left; }
 .td-skin div button:hover { background: var(--field); border-color: transparent; }
 .td-skin div button[aria-checked="true"] { border-color: var(--takt-from); }
@@ -259,8 +269,9 @@ span.td-checked { padding: 5px 0; }
 .st-verse span { display: block; }
 .st-verse span + span { padding-top: 1.6em; }
 .st-empty { margin: 0; padding: 4px 0; color: var(--text-secondary); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.st-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0 40px; }
-.st-list button { width: 100%; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 10px 6px; text-align: left; border: 0; border-bottom: 1px solid var(--border); }
+.st-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0 40px; align-items: start; }
+.st-list li { display: flex; align-items: center; min-width: 0; border-bottom: 1px solid var(--border); }
+.st-list button { flex: 1; min-width: 0; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 10px 6px; text-align: left; border: 0; }
 .st-list button:hover { background: var(--field); box-shadow: inset 2px 0 0 var(--takt-from); }
 .st-list span { overflow: hidden; text-overflow: ellipsis; }
 .st-list b { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
@@ -330,7 +341,7 @@ span.td-checked { padding: 5px 0; }
 .fx-rail-head button { padding: 0 8px; border-color: transparent; color: var(--text-secondary); }
 .fx-rail ol { display: grid; border-top: 1px solid var(--border); }
 .fx-rail li { position: relative; border-bottom: 1px solid var(--border); }
-.fx-rail li button, .fx-free { position: relative; overflow: hidden; width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 2px 8px; padding: 10px 8px 10px 10px; text-align: left; border-color: transparent; white-space: normal; }
+.fx-rail li button, .fx-free { position: relative; overflow: hidden; width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 2px 8px; padding: 10px 30px 10px 10px; text-align: left; border-color: transparent; white-space: normal; }
 .fx-rail li button:hover, .fx-free:hover { background: var(--field); border-color: transparent; }
 .fx-rail [aria-current="true"] { background: var(--field); box-shadow: inset 2px 0 0 var(--takt-from); }
 .fx-id { grid-row: 1 / 3; align-self: center; font: 400 17px var(--num); font-stretch: 85%; color: var(--text-secondary); }
@@ -340,15 +351,21 @@ span.td-checked { padding: 5px 0; }
 [data-done="true"] .fx-time { color: var(--ok); }
 .fx-rail li i { position: absolute; left: 0; bottom: 0; height: 1px; background: var(--takt-from); }
 .fx-rail li [data-done="true"] i { background: var(--ok); }
-.fx-rail li .fx-drop { position: absolute; top: 6px; right: 4px; width: auto; display: block; padding: 0 7px; line-height: 20px; font-size: 14px; color: var(--text-secondary); background: var(--page); border-color: var(--border-strong); opacity: 0; }
-.fx-rail li:hover .fx-drop, .fx-rail li .fx-drop:focus-visible { opacity: 1; }
-.fx-rail li .fx-drop:hover { color: var(--text-primary); border-color: var(--text-primary); }
-.fx[data-rail="closed"] .fx-rail li .fx-drop { display: none; }
-.fx-ask { display: grid; gap: 7px; padding: 12px 10px; background: var(--field); box-shadow: inset 2px 0 0 var(--takt-from); }
-.fx-ask p { margin: 0; line-height: 1.5; font: 500 14px/1.5 var(--song); }
-.fx-rail li .fx-ask button { display: block; padding: 6px 8px; text-align: center; border-color: var(--border-strong); }
-.fx-rail li .fx-ask button:hover { border-color: var(--text-primary); }
-.fx-rail li .fx-ask .fx-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+/* Taking a row off the list: a quiet × that is always there, and the question it opens in the row's place. */
+:is(.fx-rail, .st-list) li .td-drop { flex: none; width: auto; display: block; padding: 0 8px; line-height: 22px; font-size: 15px; color: var(--text-secondary); background: none; border: 1px solid transparent; opacity: .55; }
+:is(.fx-rail, .st-list) li .td-drop:is(:hover, :focus-visible) { opacity: 1; color: var(--text-primary); border-color: var(--border-strong); background: var(--page); box-shadow: none; }
+.fx-rail li .td-drop { position: absolute; top: 5px; right: 2px; }
+.fx[data-rail="closed"] .fx-rail li .td-drop { display: none; }
+.fx[data-rail="closed"] .fx-rail li button { padding-right: 2px; }
+.td-ask { flex: 1; min-width: 0; display: grid; gap: 8px; padding: 12px 10px; background: var(--field); box-shadow: inset 2px 0 0 var(--takt-from); }
+.td-ask p { margin: 0; font: 500 14px/1.5 var(--song); }
+.td-ask small { line-height: 1.6; }
+.td-ask > div { display: flex; flex-wrap: wrap; gap: 7px; }
+:is(.fx-rail, .st-list) li .td-ask button { flex: 1 1 auto; width: auto; display: block; padding: 6px 12px; text-align: center; border: 1px solid var(--border-strong); background: none; box-shadow: none; white-space: nowrap; }
+:is(.fx-rail, .st-list) li .td-ask button:hover { border-color: var(--text-primary); }
+:is(.fx-rail, .st-list) li .td-ask .td-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.fx-rail li .td-ask > div { display: grid; }
+.fx-rail li .td-ask button { white-space: normal; }
 .fx-rail-empty { margin: 10px 2px; font-size: 12px; color: var(--text-secondary); }
 .fx-add { display: flex; gap: 8px; justify-content: center; margin-top: 12px; border-style: dashed; color: var(--text-secondary); font-size: 12px; }
 .fx-free { margin-top: auto; border-top: 1px solid var(--border-strong); }
@@ -409,10 +426,10 @@ span.td-checked { padding: 5px 0; }
 /* The rhythm coach keeps its own sheet; only its headings join the house style. */
 .td-app .rc h2 { font: 500 34px/1.25 var(--song); letter-spacing: .06em; }
 
-@media (max-height: 700px) { .td-rail { gap: 12px; padding-top: 14px; } .td-mode-nav button { padding: 13px 12px 7px; } }
+@media (max-height: 700px) { .td-rail { gap: 12px; padding-top: 14px; } .td-mode-nav button { padding: 13px 12px 7px; } .td-pop + .td-pop { margin-top: -8px; } }
 @media (max-width: 860px) {
   .td-app { grid-template-columns: 58px minmax(0, 1fr); }
-  .td-skin div { left: 66px; }
+  .td-pop > div { left: 66px; }
   .td-metro, .st-grid { grid-template-columns: 1fr; }
   .st-hero { grid-template-columns: minmax(0, 1fr); }
   .st-verse { display: none; }
