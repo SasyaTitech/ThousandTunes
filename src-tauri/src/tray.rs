@@ -47,8 +47,15 @@ pub struct MenuHandle {
     pub retired: RwLock<Option<Menu<Wry>>>,
 }
 
+#[cfg(not(feature = "practice-build"))]
 const ICON_IDLE: &[u8] = include_bytes!("../icons/tray-idle.png");
+#[cfg(not(feature = "practice-build"))]
 const ICON_PLAYING: &[u8] = include_bytes!("../icons/tray-playing.png");
+// The practice edition wears its own mark, already in its own colours.
+#[cfg(feature = "practice-build")]
+const ICON_IDLE: &[u8] = include_bytes!("../icons/qianqu/tray-idle.png");
+#[cfg(feature = "practice-build")]
+const ICON_PLAYING: &[u8] = include_bytes!("../icons/qianqu/tray-playing.png");
 
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     app.manage(MenuHandle {
@@ -301,14 +308,14 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 
     if cfg!(feature = "practice-build") {
         return MenuBuilder::new(app)
-            .item(&MenuItemBuilder::with_id("practice:manage", "Open TaktDock").build(app)?)
+            .item(&MenuItemBuilder::with_id("practice:manage", "打开千曲").build(app)?)
             .item(
-                &MenuItemBuilder::with_id("play", if running { "Stop" } else { "Play" })
+                &MenuItemBuilder::with_id("play", if running { "停止" } else { "开始" })
                     .build(app)?,
             )
             .separator()
-            .item(&MenuItemBuilder::with_id("diag:report", "Save diagnostic report").build(app)?)
-            .item(&MenuItemBuilder::with_id("exit", "Exit").build(app)?)
+            .item(&MenuItemBuilder::with_id("diag:report", "保存诊断报告").build(app)?)
+            .item(&MenuItemBuilder::with_id("exit", "退出").build(app)?)
             .build();
     }
 
@@ -863,7 +870,9 @@ pub fn refresh_badge(app: &AppHandle) {
     let key = (running, rgb);
     let changed = LAST_ICON.lock().replace(key) != Some(key);
     if changed {
-        let icon = if running {
+        let icon = if running && cfg!(feature = "practice-build") {
+            Image::from_bytes(ICON_PLAYING)
+        } else if running {
             tinted(ICON_PLAYING, rgb)
         } else {
             Image::from_bytes(ICON_IDLE)
@@ -877,20 +886,27 @@ pub fn refresh_badge(app: &AppHandle) {
 
 fn tooltip(app: &AppHandle) -> String {
     let Some(state) = app.try_state::<Arc<AppState>>() else {
-        return "TaktDock".into();
+        return crate::APP_NAME.into();
     };
     let m = state.settings.get().metronome;
-    let mut text = format!(
-        "TaktDock, {} bpm {}/{}, {}",
-        m.bpm,
-        m.beats_per_bar,
-        m.beat_unit,
-        if state.engine.is_running() {
-            "playing"
-        } else {
-            "stopped"
-        }
-    );
+    let running = state.engine.is_running();
+    let mut text = if cfg!(feature = "practice-build") {
+        format!(
+            "千曲 · {} BPM {}/{} · {}",
+            m.bpm,
+            m.beats_per_bar,
+            m.beat_unit,
+            if running { "播放中" } else { "已停止" }
+        )
+    } else {
+        format!(
+            "TaktDock, {} bpm {}/{}, {}",
+            m.bpm,
+            m.beats_per_bar,
+            m.beat_unit,
+            if running { "playing" } else { "stopped" }
+        )
+    };
     if let Some(problem) = state.engine.status().problem {
         text.push('\n');
         text.push_str(&problem);

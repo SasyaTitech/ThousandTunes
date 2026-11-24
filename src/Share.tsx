@@ -3,15 +3,16 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Book, Journal } from "@/lib/journal";
 import { shareData, type ShareData, type Shape } from "@/lib/share";
 import { cnDate } from "@/lib/verse";
+import { MARK } from "@/Logo";
 
-interface Palette { page: string; text: string; muted: string; accent: string; line: string; seal: string; sealInk: string }
+interface Palette { page: string; text: string; muted: string; accent: string; line: string; seal: string }
 function palette(): Palette {
   const css = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
   return {
     page: v("--page", "#0f0f0e"), text: v("--text-primary", "#ece7dc"), muted: v("--text-secondary", "#9a958a"),
     accent: v("--takt-from", "#b4493b"), line: v("--border-strong", "#ffffff42"),
-    seal: v("--seal", "#c8372a"), sealInk: v("--seal-ink", "#fff3e6"),
+    seal: v("--seal", "#a8433a"),
   };
 }
 
@@ -19,19 +20,20 @@ const W = 1080, PAD = 84;
 /** The title runs down the right edge; everything above the list keeps clear of it. */
 const COLUMN = 130;
 const SONG = `"Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC", STZhongsong, "Songti SC", SimSun, serif`;
-const KAI = `STKaiti, KaiTi, "楷体", "Kaiti SC", serif`;
 const NUM = `Bahnschrift, "DIN Alternate", "Segoe UI", sans-serif`;
 const SANS = `"Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif`;
 
 /** Where each band of the card sits, in card pixels. The square card is the portrait one with less air and no week. */
 const LAYOUT = {
-  portrait: { height: 1440, label: 262, number: 486, numberSize: 236, stats: 640, rule: 760, listHead: 836, row: 912, rowStep: 76, rows: 5, week: 1300, seal: [76, 108] },
-  square: { height: 1080, label: 248, number: 442, numberSize: 200, stats: 574, rule: 660, listHead: 728, row: 800, rowStep: 62, rows: 3, week: 0, seal: [56, 80] },
+  portrait: { height: 1440, label: 262, number: 486, numberSize: 236, stats: 640, rule: 760, listHead: 836, row: 912, rowStep: 76, rows: 5, week: 1300, mark: 60 },
+  square: { height: 1080, label: 248, number: 442, numberSize: 200, stats: 574, rule: 660, listHead: 728, row: 800, rowStep: 62, rows: 3, week: 0, mark: 46 },
 } as const;
 
 /** Draws the card in the colours the window is wearing. Everything is in card pixels, 1080 wide. */
 export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Shape) {
   const L = LAYOUT[shape], H = L.height;
+  /** One unit of the mark, and how wide that makes it. */
+  const u = L.mark / MARK.height, markWidth = MARK.width * u;
   canvas.width = W; canvas.height = H;
   const c = canvas.getContext("2d")!;
   const p = palette();
@@ -109,7 +111,7 @@ export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Sha
 
   // The week behind today as seven dots, inked by how long each day was; only where there is room.
   if (L.week) {
-    const gap = (W - PAD * 2 - L.seal[0] - 40) / 7;
+    const gap = (W - PAD * 2 - markWidth - 60) / 7;
     data.week.forEach((d, i) => {
       const cx = PAD + (i + .5) * gap, level = d.minutes === 0 ? 0 : d.minutes < 15 ? .28 : d.minutes < 30 ? .5 : d.minutes < 60 ? .76 : 1;
       c.beginPath(); c.arc(cx, L.week, 15, 0, Math.PI * 2);
@@ -119,12 +121,11 @@ export function drawShare(canvas: HTMLCanvasElement, data: ShareData, shape: Sha
     });
   }
 
-  // Sealed in the corner.
-  const [sw, sh] = L.seal;
-  const sx = W - PAD - sw, sy = H - 70 - sh;
-  c.fillStyle = p.seal; c.fillRect(sx, sy, sw, sh);
-  c.strokeStyle = p.sealInk; c.lineWidth = 1.5; c.globalAlpha = .7; c.strokeRect(sx + 5, sy + 5, sw - 10, sh - 10); c.globalAlpha = 1;
-  down("千曲", sx + sw / 2, sy + sh * .1, Math.round(sw * .58), sh * .4, 400, KAI, p.sealInk);
+  // Signed in the corner with the mark: the stroke in cinnabar, the dots in the card's ink.
+  const mx = W - PAD - markWidth, my = H - 76 - L.mark;
+  c.fillStyle = p.seal; c.beginPath(); c.roundRect(mx, my, MARK.bar * u, L.mark, MARK.bar * u / 2); c.fill();
+  c.fillStyle = p.text;
+  MARK.dots.forEach(cx => { c.beginPath(); c.arc(mx + cx * u, my + L.mark / 2, MARK.dot * u, 0, Math.PI * 2); c.fill(); });
 }
 
 const pngOf = (canvas: HTMLCanvasElement) => new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("图片生成失败")), "image/png"));

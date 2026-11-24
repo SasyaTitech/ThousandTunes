@@ -28,7 +28,7 @@ pub fn save_report(app: &AppHandle, reveal: bool) {
                 crate::shell::open(&data_dir());
             }
         }
-        Err(e) => message_box("TaktDock", &format!("The report could not be written: {e}")),
+        Err(e) => message_box(crate::APP_NAME, &format!("The report could not be written: {e}")),
     }
 }
 
@@ -39,7 +39,8 @@ fn report(state: &AppState) -> String {
 
     let mut out = String::new();
     out.push_str(&format!(
-        "TaktDock diagnostic report\n{}\n\n",
+        "{} diagnostic report\n{}\n\n",
+        crate::APP_NAME,
         Utc::now().to_rfc3339()
     ));
     out.push_str(&format!("version: {}\n", env!("CARGO_PKG_VERSION")));

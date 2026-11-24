@@ -1,5 +1,13 @@
 //! TaktDock, a metronome that lives on the taskbar.
 
+/// What the program calls itself wherever a person reads it: the tray, a
+/// message box, a report. The practice edition goes by its own name.
+pub const APP_NAME: &str = if cfg!(feature = "practice-build") {
+    "千曲"
+} else {
+    "TaktDock"
+};
+
 pub mod audio;
 pub mod autostart;
 pub mod coach;
@@ -186,7 +194,7 @@ fn install_panic_hook() {
         let _ = std::fs::write(
             path,
             format!(
-                "{}\nTaktDock {} on {}\nup {}s\nthread {thread}\npanic at {location}\n{message}\n\nlast log lines\n{}\n",
+                "{}\n{APP_NAME} {} on {}\nup {}s\nthread {thread}\npanic at {location}\n{message}\n\nlast log lines\n{}\n",
                 chrono::Utc::now().to_rfc3339(),
                 env!("CARGO_PKG_VERSION"),
                 desktop(),
@@ -276,7 +284,7 @@ pub fn run() {
     init_logging();
     install_panic_hook();
     tracing::info!(
-        "TaktDock {} starting, data in {}",
+        "{APP_NAME} {} starting, data in {}",
         env!("CARGO_PKG_VERSION"),
         settings::data_dir().display()
     );
@@ -463,7 +471,7 @@ pub fn run() {
             }
 
             if let Some(note) = recovered {
-                std::thread::spawn(move || diagnostics::message_box("TaktDock", note));
+                std::thread::spawn(move || diagnostics::message_box(APP_NAME, note));
             }
 
             if std::env::args().any(|a| a == UPDATE_FLAG) {

@@ -442,14 +442,14 @@ test("the name and its verse greet the player, then stay on the home page", asyn
   await installTauriMock(page);
   await page.goto("/?view=main");
   const card = page.locator(".td-splash");
-  await expect(card).toHaveText(/^千曲操千曲而后晓声，观千剑而后识器。刘勰《文心雕龙·知音》知音THOUSAND TUNES · 1\.0\.0-practice\.\d+$/);
+  await expect(card).toHaveText(/^千曲操千曲而后晓声，观千剑而后识器。刘勰《文心雕龙·知音》THOUSAND TUNES · 1\.0\.0-practice\.\d+$/);
   // It is decoration: it cannot be clicked or read out, and it goes away by itself.
   expect(await card.evaluate(el => [getComputedStyle(el).pointerEvents, el.getAttribute("aria-hidden")])).toEqual(["none", "true"]);
   await page.getByRole("tab", { name: "教材" }).click();
   await page.getByRole("tab", { name: "主页" }).click();
   await expect(card).toBeHidden();
   await expect(page.getByRole("region", { name: "主页" }).locator(".st-verse")).toHaveText("操千曲而后晓声，观千剑而后识器。");
-  await expect(page.locator(".td-brand")).toHaveText("千曲");
+  await expect(page.locator(".td-brand").getByRole("img", { name: "千曲" })).toBeVisible();
 });
 
 test("the header dates the day in characters", async ({ page }) => {

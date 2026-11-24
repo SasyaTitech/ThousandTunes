@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import Focus from "@/Focus";
 import Library from "@/Library";
+import Logo from "@/Logo";
 import Presets, { SUBDIVISIONS } from "@/Presets";
 import RhythmCoach from "@/RhythmCoach";
 import Stats from "@/Stats";
@@ -195,12 +196,12 @@ export default function MainWindow() {
         <s className="td-strings" />
         <p><span>{VERSE_LINES[0]}</span><span>{VERSE_LINES[1]}</span></p>
         <small>{VERSE_SOURCE}</small>
-        <i className="td-seal">知音</i>
+        <Logo />
         <em>THOUSAND TUNES · {practiceConf.version}</em>
       </div>
     </div>
     <aside className="td-rail">
-      <div className="td-brand" title={`${VERSE}——${VERSE_SOURCE}`}><b className="td-seal">千曲</b></div>
+      <div className="td-brand" title={`${VERSE}——${VERSE_SOURCE}`}><Logo /></div>
       <nav className="td-mode-nav" role="tablist" aria-label="页面" aria-orientation="vertical">
         {PAGES.map(([id, label]) => <button key={id} role="tab" aria-selected={page === id} onClick={() => setPage(id)}>{label}</button>)}
       </nav>

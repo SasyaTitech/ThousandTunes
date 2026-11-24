@@ -79,17 +79,17 @@ html.td-main-page, .td-main-page body, .td-main-page #root { background: var(--p
 .td-splash p span { display: block; }
 .td-splash p span + span { padding-top: 2em; }
 .td-splash small { display: block; margin-right: 18px; padding-top: 200px; font-size: 12px; letter-spacing: .24em; }
-.td-splash .td-seal { display: block; width: fit-content; height: fit-content; margin: auto 26px 0 0; padding: 9px 6px; font-size: 22px; }
+.td-splash .td-logo { width: 46px; margin: auto 22px 4px 0; }
 .td-splash em { display: block; margin-right: 12px; font: 600 9px/1 var(--sans); font-style: normal; letter-spacing: .42em; color: var(--text-secondary); }
 @keyframes td-splash { 0%, 72% { opacity: 1; visibility: visible; } 100% { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .td-splash { animation-duration: 1.2s; } }
 
-/* The seal: white script cut out of cinnabar, read downwards. */
-.td-seal { writing-mode: vertical-rl; display: inline-block; padding: 8px 5px; background: var(--seal); color: var(--seal-ink); font: 400 20px/1 var(--kai); font-style: normal; letter-spacing: .1em; text-decoration: none; }
+/* The mark: a cinnabar stroke and three dots in the colour of the text around it. */
+.td-logo { display: block; width: 36px; height: auto; color: var(--text-primary); }
 
-/* The spine: the seal, then the pages, written downwards */
+/* The spine: the mark, then the pages, written downwards */
 .td-rail { min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px 0 16px; border-right: 1px solid var(--border); overflow: hidden auto; scrollbar-width: none; }
-.td-brand { display: grid; justify-items: center; gap: 12px; }
+.td-brand { display: grid; justify-items: center; padding: 6px 0 4px; }
 .td-mode-nav { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .td-mode-nav button { position: relative; writing-mode: vertical-rl; border: 0; background: none; padding: 16px 12px 10px; font: 400 17px/1 var(--song); letter-spacing: .1em; color: var(--text-secondary); }
 .td-mode-nav button:hover { color: var(--text-primary); }

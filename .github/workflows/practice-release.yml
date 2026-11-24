@@ -72,13 +72,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          asset="TaktDock-Practice-$TAG-x64.exe"
+          asset="ThousandTunes-$TAG-x64.exe"
           cp src-tauri/target/release/taktdock.exe "$asset"
           sha256sum "$asset" > "$asset.sha256"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$asset" "$asset.sha256" --clobber
           else
             gh release create "$TAG" "$asset" "$asset.sha256" --verify-tag \
-              --title "TaktDock Practice $TAG" \
+              --title "千曲 $TAG" \
               --notes "Windows x64, portable. Built by GitHub Actions from commit $GITHUB_SHA."
           fi
