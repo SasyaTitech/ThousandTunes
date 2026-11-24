@@ -1,7 +1,7 @@
 {
   "productName": "千曲",
   "identifier": "com.kalaylienes.taktdock.practice",
-  "version": "1.0.0-practice.13",
+  "version": "1.0.0-practice.14",
   "app": { "windows": [] },
   "bundle": {
     "icon": ["icons/qianqu/32x32.png", "icons/qianqu/128x128.png", "icons/qianqu/128x128@2x.png", "icons/qianqu/icon.ico"]

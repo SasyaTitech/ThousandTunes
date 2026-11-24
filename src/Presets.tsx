@@ -1,6 +1,7 @@
 import * as React from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import Pop from "@/Pop";
 import type { Preset, PracticeView } from "@/Practice";
 import type { Transport } from "@/lib/types";
 
@@ -8,6 +9,49 @@ const METERS = ["1/4", "2/4", "3/4", "4/4", "5/4", "6/8", "7/8"];
 export const SUBDIVISIONS = ["每拍 1 下", "每拍 2 下", "每拍 3 下（三连音）", "每拍 4 下"];
 const EMPTY: Preset = { id: 0, name: "", bpm: 120, beats_per_bar: 4, beat_unit: 4, subdivision: 1, accent_first: true };
 const current = (t: Transport | null): Preset => t ? { ...EMPTY, bpm: t.bpm, beats_per_bar: t.beats_per_bar, beat_unit: t.beat_unit, subdivision: t.subdivision, accent_first: t.accent_first } : EMPTY;
+
+const describe = (p: Preset) => `${p.beats_per_bar}/${p.beat_unit} · ${SUBDIVISIONS[p.subdivision - 1]}${p.accent_first ? "" : " · 无重音"}`;
+/** A preset is "on" while the metronome is still set as it left it. */
+const matches = (p: Preset, t: Transport | null) => !!t && p.bpm === t.bpm && p.beats_per_bar === t.beats_per_bar && p.beat_unit === t.beat_unit && p.subdivision === t.subdivision && p.accent_first === t.accent_first;
+
+/**
+ * Presets within reach of the practice page: one line that names the preset in
+ * use and opens the list. Making and editing them stays on the metronome page.
+ */
+export function PresetPicker({ transport, manage }: { transport: Transport | null; manage: () => void }) {
+  const [view, setView] = React.useState<PracticeView | null>(null);
+  const [error, setError] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => {
+    let disposed = false, un: (() => void) | undefined;
+    listen<PracticeView>("practice", e => { if (!disposed) setView(e.payload); }).then(f => disposed ? f() : (un = f)).catch(() => {});
+    invoke<PracticeView>("get_practice").then(p => { if (!disposed) setView(p); }).catch(e => { if (!disposed) setError(String(e)); });
+    return () => { disposed = true; un?.(); };
+  }, []);
+  const presets = view?.presets ?? [];
+  const on = presets.find(p => p.id === view?.selected_id && matches(p, transport)) ?? null;
+  async function use(id: number, details: HTMLDetailsElement) {
+    setBusy(true); setError("");
+    try {
+      await invoke("apply_practice_preset", { id });
+      setView(await invoke<PracticeView>("get_practice"));
+      details.open = false;
+    } catch (e) { setError(String(e)); } finally { setBusy(false); }
+  }
+  return <Pop className="td-recall" title="切换预设" label={<>预设{on && <b title={on.name}>{on.name}</b>}</>}>
+    <div role="group" aria-label="切换预设">
+      {error && <p className="td-error" role="alert">{error}</p>}
+      {presets.length === 0 ? <p className="ps-note">还没有预设。在“节拍器”页调好速度和拍号，存成预设，就能在这里一键切换。</p>
+        : <ol className="ps-list">{presets.map((p, i) => <li key={p.id} data-selected={p === on}>
+          <button type="button" className="ps-use" aria-label={`使用 ${p.name}`} aria-pressed={p === on} disabled={busy} onClick={e => void use(p.id, e.currentTarget.closest("details")!)}>
+            <span className="ps-slot num">{i + 1}</span>
+            <span className="ps-name"><strong title={p.name}>{p.name}</strong><small>{describe(p)}</small></span>
+            <b className="num">{p.bpm}</b>
+          </button></li>)}</ol>}
+      <button type="button" className="td-recall-manage" onClick={manage}>{presets.length === 0 ? "去节拍器页添加 →" : "管理预设 →"}</button>
+    </div>
+  </Pop>;
+}
 
 /** The main window's presets and global shortcuts. */
 export default function Presets({ transport }: { transport: Transport | null }) {
@@ -56,7 +100,7 @@ export default function Presets({ transport }: { transport: Transport | null }) 
             setView(await invoke<PracticeView>("get_practice"));
           })}>
             <span className="ps-slot num">{i + 1}</span>
-            <span className="ps-name"><strong title={p.name}>{p.name}</strong><small>{p.beats_per_bar}/{p.beat_unit} · {SUBDIVISIONS[p.subdivision - 1]}{p.accent_first ? "" : " · 无重音"}</small></span>
+            <span className="ps-name"><strong title={p.name}>{p.name}</strong><small>{describe(p)}</small></span>
             <b className="num">{p.bpm}</b>
           </button>
           <button type="button" aria-label={`编辑 ${p.name}`} disabled={busy} onClick={() => { setDraft({ ...p }); setRemoving(null); }}>编辑</button>

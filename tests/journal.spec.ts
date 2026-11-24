@@ -342,6 +342,48 @@ test("volume is set from a panel at the foot of the spine, which puts itself awa
   await expect(slider).toHaveValue("39");
 });
 
+test("a preset can be switched to without leaving the practice page", async ({ page }) => {
+  await open(page, td => {
+    td.journal.practising = [{ book: "shuaishuai-7w-1", exercise: "W1-EX5" }];
+    td.practice.presets = [
+      { id: 1, name: "慢练音阶", bpm: 60, beats_per_bar: 4, beat_unit: 4, subdivision: 1, accent_first: true },
+      { id: 2, name: "三连音扫弦", bpm: 92, beats_per_bar: 3, beat_unit: 4, subdivision: 3, accent_first: true },
+    ];
+  });
+  const main = page.getByRole("region", { name: "当前练习" });
+  const opener = main.getByText("预设", { exact: true });
+  const list = main.getByRole("group", { name: "切换预设" });
+  await expect(list).toHaveCount(0);
+  await opener.click();
+  // Every entry is on screen and in front, at the normal and the minimum window size.
+  const covered = () => list.getByRole("button").evaluateAll(els => els.filter(el => {
+    const r = el.getBoundingClientRect(), inside = r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
+    return !inside || ![[r.left + 3, r.top + 3], [r.right - 3, r.bottom - 3]].every(([x, y]) => el.contains(document.elementFromPoint(x, y)));
+  }).map(el => el.textContent));
+  expect(await covered()).toEqual([]);
+  await page.setViewportSize({ width: 640, height: 540 });
+  await opener.scrollIntoViewIfNeeded();
+  expect(await covered()).toEqual([]);
+  await page.setViewportSize({ width: 1120, height: 780 });
+
+  await list.getByRole("button", { name: "使用 三连音扫弦" }).click();
+  expect((await calls(page, "apply_practice_preset")).map(c => c.args)).toEqual([{ id: 2 }]);
+  await expect(main.getByRole("spinbutton", { name: "速度 BPM" })).toHaveValue("92");
+  await expect(main.getByText("3/4 · 每拍 3 下（三连音）")).toBeVisible();
+  // The list puts itself away and the line names what is in use.
+  await expect(list).toHaveCount(0);
+  await expect(main.locator(".td-recall summary")).toHaveText("预设三连音扫弦");
+  // Moving the tempo by hand leaves the preset: nothing is named any more.
+  await main.getByRole("button", { name: "加 1" }).click();
+  await expect(main.locator(".td-recall summary")).toHaveText("预设");
+  await opener.click();
+  await expect(list.getByRole("button", { name: "使用 三连音扫弦" })).toHaveAttribute("aria-pressed", "false");
+  // Making and editing presets stays on the metronome page, one press away.
+  await list.getByRole("button", { name: "管理预设 →" }).click();
+  await expect(page.getByRole("tab", { name: "节拍器" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { name: "使用 慢练音阶" })).toBeVisible();
+});
+
 test("the home page's list takes an exercise off as well, after asking", async ({ page }) => {
   await installTauriMock(page);
   await page.clock.install({ time: NOW });

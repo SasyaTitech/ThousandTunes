@@ -4,7 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import Focus from "@/Focus";
 import Library from "@/Library";
 import Logo from "@/Logo";
-import Presets, { SUBDIVISIONS } from "@/Presets";
+import Pop from "@/Pop";
+import Presets, { PresetPicker, SUBDIVISIONS } from "@/Presets";
 import RhythmCoach from "@/RhythmCoach";
 import Stats from "@/Stats";
 import { BOOKS } from "@/books";
@@ -181,7 +182,9 @@ export default function MainWindow() {
   const checkedIn = days.has(today);
   const byHand = !!journal?.checkins.includes(today);
 
-  const metronome = (size: "hero" | "bar") => <Metronome size={size} transport={transport} beat={beat} busy={busy} tempo={tempo} setTempo={setTempo} commitTempo={commitTempo}
+  // The practice page can change preset without leaving; elsewhere the metronome page is a click away anyway.
+  const metronome = (size: "hero" | "bar") => <Metronome size={size} transport={transport}
+    extra={size === "hero" ? <PresetPicker transport={transport} manage={() => setPage("metronome")} /> : null} beat={beat} busy={busy} tempo={tempo} setTempo={setTempo} commitTempo={commitTempo}
     nudge={by => { if (transport) void change({ bpm: Math.max(30, Math.min(300, transport.bpm + by)) }); }} toggle={() => void toggle()}
     tap={() => {
       const bpm = tapper.current.tap(performance.now());
@@ -271,26 +274,6 @@ export default function MainWindow() {
   </div>;
 }
 
-/**
- * A control at the foot of the spine that opens a small panel beside it.
- * The panel exists only while open; a click elsewhere or Escape puts it away.
- */
-function Pop({ className, label, title, mark, children }: { className: string; label: string; title: string; mark: React.ReactNode; children: React.ReactNode }) {
-  const ref = React.useRef<HTMLDetailsElement>(null);
-  const [open, setOpen] = React.useState(false);
-  React.useEffect(() => {
-    if (!open) return;
-    const away = (e: Event) => { if (ref.current && !ref.current.contains(e.target as Node)) ref.current.open = false; };
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape" && ref.current) ref.current.open = false; };
-    document.addEventListener("pointerdown", away); document.addEventListener("keydown", key);
-    return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", key); };
-  }, [open]);
-  return <details ref={ref} className={`td-pop ${className}`} onToggle={e => setOpen(e.currentTarget.open)}>
-    <summary title={title}>{mark}{label}</summary>
-    {open && children}
-  </details>;
-}
-
 interface MetronomeProps {
   /** "hero" is the practice page's centrepiece; "bar" rides under the header elsewhere. */
   size: "hero" | "bar";
@@ -303,9 +286,11 @@ interface MetronomeProps {
   nudge: (by: number) => void;
   toggle: () => void;
   tap: () => void;
+  /** Sits under the tempo slider. */
+  extra?: React.ReactNode;
 }
 
-function Metronome({ size, transport, beat, busy, tempo, setTempo, commitTempo, nudge, toggle, tap }: MetronomeProps) {
+function Metronome({ size, transport, beat, busy, tempo, setTempo, commitTempo, nudge, toggle, tap, extra }: MetronomeProps) {
   const count = transport?.running && beat ? beat.beats_per_bar : transport?.beats_per_bar ?? 4;
   const off = !transport || busy;
   return <section className="td-transport" data-size={size} aria-label="节拍器" data-running={transport?.running ?? false}>
@@ -329,6 +314,7 @@ function Metronome({ size, transport, beat, busy, tempo, setTempo, commitTempo, 
       <input className="td-range" aria-label="速度滑块" type="range" min={30} max={300} step={1} disabled={off}
         value={Number(tempo) || 30} onChange={e => setTempo(e.target.value)}
         onPointerUp={e => commitTempo(e.currentTarget.value)} onKeyUp={e => commitTempo(e.currentTarget.value)} />
+      {extra}
     </div>
     <button type="button" className="td-tap" disabled={off} onClick={tap}>TAP<small>敲击测速</small></button>
   </section>;

@@ -95,16 +95,32 @@ html.td-main-page, .td-main-page body, .td-main-page #root { background: var(--p
 .td-mode-nav button:hover { color: var(--text-primary); }
 .td-mode-nav button[aria-selected="true"] { color: var(--text-primary); font-weight: 600; }
 .td-mode-nav button[aria-selected="true"]::before { content: ""; position: absolute; top: 4px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; background: var(--takt-from); transform: rotate(45deg); }
-/* At the foot of the spine: volume and colours, each opening a small panel. */
+/* Things that open a small panel when pressed. */
 .td-pop { font-size: 12px; }
-.td-pop:first-of-type { margin-top: auto; }
-.td-pop + .td-pop { margin-top: -10px; }
-.td-pop summary { list-style: none; display: grid; justify-items: center; gap: 8px; padding: 8px 6px; color: var(--text-secondary); cursor: pointer; writing-mode: vertical-rl; }
+.td-pop summary { list-style: none; color: var(--text-secondary); cursor: pointer; }
 .td-pop summary::-webkit-details-marker { display: none; }
 .td-pop summary:hover, .td-pop[open] summary { color: var(--text-primary); }
+.td-pop > div { z-index: 60; border: 1px solid var(--border-strong); background: var(--raised); box-shadow: 0 14px 40px #0007; }
+/* At the foot of the spine: volume and colours. */
+.td-rail .td-pop:first-of-type { margin-top: auto; }
+.td-rail .td-pop + .td-pop { margin-top: -10px; }
+.td-rail .td-pop summary { display: grid; justify-items: center; gap: 8px; padding: 8px 6px; writing-mode: vertical-rl; }
 .td-skin i { width: 10px; height: 10px; box-shadow: 0 0 0 1px var(--border-strong); transform: rotate(45deg); }
-/* The spine scrolls when the window is short, so it clips what hangs out of it: the panels are placed against the window instead. */
-.td-pop > div { position: fixed; z-index: 60; left: 84px; bottom: 14px; width: 232px; border: 1px solid var(--border-strong); background: var(--raised); box-shadow: 0 14px 40px #0007; }
+/* The spine scrolls when the window is short, so it clips what hangs out of it: its panels are placed against the window instead. */
+.td-rail .td-pop > div { position: fixed; left: 84px; bottom: 14px; width: 232px; }
+/* Presets, under the practice page's tempo slider: the list opens upwards, where there is always room. */
+.td-recall { position: relative; min-width: 0; }
+.td-recall summary { display: flex; align-items: center; gap: 8px; width: fit-content; max-width: 100%; padding: 3px; }
+.td-recall summary::after { content: "▾"; font-size: 10px; }
+.td-recall summary b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; color: var(--text-primary); }
+.td-recall > div { position: absolute; right: 0; bottom: calc(100% + 4px); width: 300px; max-width: calc(100vw - 100px); max-height: 330px; overflow: auto; padding: 6px; }
+.td-recall .ps-list { border-top: 0; }
+.td-recall .ps-list li:last-child { border-bottom: 0; }
+.td-recall .ps-use { padding: 8px; gap: 12px; }
+.td-recall .ps-use > b { font-size: 20px; }
+.td-recall .ps-note { margin: 6px 8px 10px; font-size: 12px; line-height: 1.6; }
+.td-recall-manage { width: 100%; margin-top: 6px; padding: 6px 8px; font-size: 12px; text-align: right; color: var(--text-secondary); border: 0; border-top: 1px solid var(--border); }
+.td-recall-manage:hover { color: var(--text-primary); }
 .td-skin > div { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; padding: 6px; }
 /* Volume is marked by a small level that stands as high as it is set. */
 .td-vol summary i { position: relative; width: 4px; height: 14px; background: var(--border-strong); }
@@ -426,10 +442,10 @@ span.td-checked { padding: 5px 0; }
 /* The rhythm coach keeps its own sheet; only its headings join the house style. */
 .td-app .rc h2 { font: 500 34px/1.25 var(--song); letter-spacing: .06em; }
 
-@media (max-height: 700px) { .td-rail { gap: 12px; padding-top: 14px; } .td-mode-nav button { padding: 13px 12px 7px; } .td-pop + .td-pop { margin-top: -8px; } }
+@media (max-height: 700px) { .td-rail { gap: 12px; padding-top: 14px; } .td-mode-nav button { padding: 13px 12px 7px; } .td-rail .td-pop + .td-pop { margin-top: -8px; } }
 @media (max-width: 860px) {
   .td-app { grid-template-columns: 58px minmax(0, 1fr); }
-  .td-pop > div { left: 66px; }
+  .td-rail .td-pop > div { left: 66px; }
   .td-metro, .st-grid { grid-template-columns: 1fr; }
   .st-hero { grid-template-columns: minmax(0, 1fr); }
   .st-verse { display: none; }
